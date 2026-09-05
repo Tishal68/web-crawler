@@ -259,3 +259,22 @@ class TestCliExecution:
 
         exit_code = main(["--url", "https://example.com", "--no-color", "--no-db"])
         assert exit_code == 130
+
+    def test_invalid_cli_arguments_return_code_1(self):
+        # Negative depth
+        assert main(["--url", "https://example.com", "--depth", "-1"]) == 1
+
+        # Zero or negative max pages
+        assert main(["--url", "https://example.com", "--max-pages", "0"]) == 1
+        assert main(["--url", "https://example.com", "--max-pages", "-5"]) == 1
+
+        # Zero or negative timeout
+        assert main(["--url", "https://example.com", "--timeout", "0"]) == 1
+        assert main(["--url", "https://example.com", "--timeout", "-2.0"]) == 1
+
+        # Negative delay
+        assert main(["--url", "https://example.com", "--delay", "-0.5"]) == 1
+
+        # Invalid export extension
+        assert main(["--url", "https://example.com", "--output", "bad_file.txt"]) == 1
+        assert main(["--url", "https://example.com", "--output", "binary.exe"]) == 1

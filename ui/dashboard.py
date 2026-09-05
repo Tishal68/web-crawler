@@ -98,18 +98,23 @@ def render_results_section(pages: List[PageResult], summary: CrawlSessionSummary
         )
     with col_filter2:
         depth_options = ["All Depths"] + sorted(list({f"Depth {p.depth}" for p in pages}))
+        if "results_depth_select" in st.session_state and st.session_state["results_depth_select"] not in depth_options:
+            st.session_state["results_depth_select"] = depth_options[0]
         selected_depth = st.selectbox("Depth Filter", depth_options, key="results_depth_select", label_visibility="collapsed")
     with col_filter3:
         status_options = ["All Status Codes"] + sorted(list({str(p.status_code) for p in pages}))
+        if "results_status_select" in st.session_state and st.session_state["results_status_select"] not in status_options:
+            st.session_state["results_status_select"] = status_options[0]
         selected_status = st.selectbox("Status Filter", status_options, key="results_status_select", label_visibility="collapsed")
 
     filtered_df = df.copy()
     if search_query:
         query_lower = search_query.lower()
+        # Literal string match (regex=False) to prevent errors on special regex characters
         mask = (
-            filtered_df["URL"].str.lower().str.contains(query_lower, na=False) |
-            filtered_df["Title"].str.lower().str.contains(query_lower, na=False) |
-            filtered_df["Domain"].str.lower().str.contains(query_lower, na=False)
+            filtered_df["URL"].astype(str).str.lower().str.contains(query_lower, regex=False, na=False) |
+            filtered_df["Title"].astype(str).str.lower().str.contains(query_lower, regex=False, na=False) |
+            filtered_df["Domain"].astype(str).str.lower().str.contains(query_lower, regex=False, na=False)
         )
         filtered_df = filtered_df[mask]
 
@@ -121,9 +126,14 @@ def render_results_section(pages: List[PageResult], summary: CrawlSessionSummary
         filtered_df = filtered_df[filtered_df["Status"] == int(selected_status)]
 
     # Quick telemetry strip for filtered view
-    status_200_count = (filtered_df["Status"] == 200).sum() if not filtered_df.empty else 0
-    avg_latency = filtered_df["Response Time (s)"].mean() if not filtered_df.empty else 0.0
-    total_extracted = filtered_df["Links"].sum() if not filtered_df.empty else 0
+    if filtered_df.empty:
+        status_200_count = 0
+        avg_latency = 0.0
+        total_extracted = 0
+    else:
+        status_200_count = int((filtered_df["Status"] == 200).sum())
+        avg_latency = float(filtered_df["Response Time (s)"].mean()) if "Response Time (s)" in filtered_df else 0.0
+        total_extracted = int(filtered_df["Links"].sum()) if "Links" in filtered_df else 0
 
     st.markdown(f"""
         <div style="display: flex; gap: 0.8rem; margin-bottom: 0.8rem; flex-wrap: wrap; font-size: 0.78rem;">
@@ -410,6 +420,9 @@ def render_history_section(db: CrawlDatabase):
     )
 
     session_options = [s["session_id"] for s in sessions]
+    if "history_session_select" in st.session_state and st.session_state["history_session_select"] not in session_options:
+        st.session_state["history_session_select"] = session_options[0]
+
     selected_session_id = st.selectbox(
         "Select a past session to inspect or reload into active dashboard:",
         session_options,
@@ -470,18 +483,38 @@ def render_history_section(db: CrawlDatabase):
             max_depth_reached=target["max_depth_reached"],
         )
 
+        # Reconstruct graph topology from parent relationships AND discovered internal inter-links
+        crawled_url_set = {p.url for p in loaded_pages}
         loaded_edges = []
+        seen_edges = set()
+
         for p in loaded_pages:
-            if p.parent_url:
+            if p.parent_url and (p.parent_url, p.url) not in seen_edges:
+                seen_edges.add((p.parent_url, p.url))
                 loaded_edges.append((p.parent_url, p.url, p.depth))
+
+        for p in loaded_pages:
+            for tgt in p.internal_urls:
+                if tgt in crawled_url_set and tgt != p.url and (p.url, tgt) not in seen_edges:
+                    seen_edges.add((p.url, tgt))
+                    loaded_edges.append((p.url, tgt, p.depth + 1))
+
+        # Reconstruct discovered URLs list
+        discovered_set = set()
+        for p in loaded_pages:
+            discovered_set.add(p.url)
+            discovered_set.update(p.internal_urls)
+            discovered_set.update(p.external_urls)
 
         st.session_state["crawl_summary"] = loaded_summary
         st.session_state["page_results"] = loaded_pages
         st.session_state["failures"] = loaded_failures
         st.session_state["graph_edges"] = loaded_edges
+        st.session_state["discovered_urls"] = list(discovered_set)
         st.session_state["input_target_url"] = loaded_summary.start_url
         st.session_state["input_max_depth"] = loaded_summary.max_depth
         st.session_state["input_max_pages"] = loaded_summary.max_pages
+        st.session_state["console_preset_select"] = "⚡ Presets: Select Target..."
         st.session_state["history_loaded_notification"] = sid
 
     c_load, c_del = st.columns([1, 1])

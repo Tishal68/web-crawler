@@ -16,7 +16,9 @@ class CrawlConfig:
     timeout: float = 10.0
     request_delay: float = 0.2
     stay_on_domain: bool = True
+    allow_subdomains: bool = True
     respect_robots: bool = True
+    max_attempts: Optional[int] = None
     user_agent: str = (
         "WebCrawlerAnalytics/1.0 (+http://localhost; Academic Assignment Bot)"
     )

@@ -194,13 +194,34 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(colors.red(f"[!] Error: Invalid starting URL '{args.url}'. Must be valid http/https."))
             return 1
         start_url = normalized_url
-        depth = max(0, args.depth)
-        max_pages = max(1, args.max_pages)
-        timeout = max(0.1, args.timeout)
-        delay = max(0.0, args.delay)
+        if args.depth < 0:
+            print(colors.red(f"[!] Error: Invalid depth {args.depth}. Depth must be >= 0."))
+            return 1
+        depth = args.depth
+
+        if args.max_pages < 1:
+            print(colors.red(f"[!] Error: Invalid max-pages {args.max_pages}. Max pages must be >= 1."))
+            return 1
+        max_pages = args.max_pages
+
+        if args.timeout <= 0:
+            print(colors.red(f"[!] Error: Invalid timeout {args.timeout}. Timeout must be > 0."))
+            return 1
+        timeout = args.timeout
+
+        if args.delay < 0:
+            print(colors.red(f"[!] Error: Invalid delay {args.delay}. Delay must be >= 0."))
+            return 1
+        delay = args.delay
+
+        if args.output:
+            out_lower = args.output.lower()
+            if not (out_lower.endswith(".csv") or out_lower.endswith(".json")):
+                print(colors.red(f"[!] Error: Invalid output path '{args.output}'. File must have a .csv or .json extension."))
+                return 1
+        output_path = args.output
         stay_on_domain = args.same_domain
         respect_robots = args.respect_robots
-        output_path = args.output
     else:
         # Interactive mode
         print(colors.cyan("Entering Interactive Setup (press Enter for defaults):"))

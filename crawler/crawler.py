@@ -1,6 +1,7 @@
 """
 Core WebCrawler engine implementing queue-based Breadth-First Search (BFS),
-duplicate detection, robots.txt compliance, robust error handling, and event streaming.
+duplicate detection, robots.txt compliance, robust error handling, streamed resource protection,
+and event streaming.
 """
 
 import collections
@@ -28,11 +29,15 @@ from .url_utils import (
 from .parser import parse_page_html
 from .robots import RobotsManager
 
+# Maximum allowed download size for HTML pages (10 MB)
+MAX_RESPONSE_BYTES = 10 * 1024 * 1024
+
 
 class WebCrawler:
     """
     Breadth-First Search web crawler that extracts page metadata, counts hyperlinks,
-    tracks depth, prevents duplicate visits, and handles network failures gracefully.
+    tracks depth, prevents duplicate visits, protects against oversized/non-HTML streams,
+    and handles network failures gracefully.
     """
 
     def __init__(self, config: Optional[CrawlConfig] = None):
@@ -40,14 +45,21 @@ class WebCrawler:
         self.session = requests.Session()
         self.robots_manager = RobotsManager(timeout=5.0, user_agent=self.config.user_agent)
 
-        # State tracking
-        self.visited_urls: Set[str] = set()
+        # Explicit state semantics
         self.discovered_urls: Set[str] = set()
+        self.queued_urls: Set[str] = set()
+        self.attempted_urls: Set[str] = set()
+        self.crawled_urls: Set[str] = set()
+        self.failed_urls: Set[str] = set()
+        self.skipped_urls: Set[str] = set()
+
+        # Backward compatibility alias
+        self.visited_urls: Set[str] = set()
+
         self.page_results: List[PageResult] = []
         self.failures: List[CrawlFailure] = []
         self.graph_edges: List[Tuple[str, str, int]] = []  # (source_url, target_url, target_depth)
 
-    # Required API methods as per architectural specifications
     def normalize_url(self, url: str, base_url: Optional[str] = None) -> Optional[str]:
         """Normalize URL and remove fragments."""
         return normalize_url(url, base_url=base_url)
@@ -67,52 +79,103 @@ class WebCrawler:
             html_content=html,
             base_url=url,
             base_domain=base_domain,
-            allow_subdomains=True,
+            allow_subdomains=self.config.allow_subdomains,
         )
 
-    def fetch_page(self, url: str, timeout: float) -> Tuple[Optional[requests.Response], float, Optional[str], Optional[str]]:
+    def fetch_page(
+        self, url: str, timeout: float
+    ) -> Tuple[Optional[requests.Response], float, Optional[str], Optional[str]]:
         """
-        Fetch a webpage via HTTP GET with stream inspection and timeout.
+        Fetch a webpage via HTTP GET with stream inspection, Content-Type verification,
+        oversized payload protection, and explicit exception classification.
         Returns: (response, response_time, error_type, error_message)
         """
         headers = {
             "User-Agent": self.config.user_agent,
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.5",
+            "Accept-Encoding": "gzip, deflate",
         }
 
         start_time = time.perf_counter()
+        resp = None
         try:
-            # We fetch stream=True first or full GET with timeout
             resp = self.session.get(
                 url,
                 headers=headers,
                 timeout=timeout,
                 allow_redirects=True,
+                stream=True,
                 verify=True,
             )
             elapsed = time.perf_counter() - start_time
+
+            # Status code check for 4xx and 5xx
+            if resp.status_code >= 400:
+                resp.close()
+                return resp, elapsed, f"HTTP {resp.status_code}", f"Server returned HTTP {resp.status_code} ({resp.reason})"
+
+            # Content-Type early inspection
+            if not self.is_html_response(resp):
+                c_type = resp.headers.get("Content-Type", "Unknown")
+                resp.close()
+                return resp, elapsed, "Non-HTML Resource", f"Skipped non-HTML Content-Type: {c_type}"
+
+            # Content-Length safety check
+            content_len_header = resp.headers.get("Content-Length")
+            if content_len_header and content_len_header.isdigit():
+                if int(content_len_header) > MAX_RESPONSE_BYTES:
+                    resp.close()
+                    return resp, elapsed, "Oversized Resource", f"Content-Length {content_len_header} exceeds {MAX_RESPONSE_BYTES} bytes limit"
+
+            # Stream body with size ceiling to prevent memory exhaustion
+            chunks = []
+            bytes_received = 0
+            for chunk in resp.iter_content(chunk_size=65536):
+                chunks.append(chunk)
+                bytes_received += len(chunk)
+                if bytes_received > MAX_RESPONSE_BYTES:
+                    resp.close()
+                    return resp, elapsed, "Oversized Resource", f"Stream exceeded maximum allowed limit of {MAX_RESPONSE_BYTES} bytes"
+
+            # Populate response content cache
+            resp._content = b"".join(chunks)
             return resp, elapsed, None, None
+
         except requests.exceptions.SSLError as e:
             elapsed = time.perf_counter() - start_time
+            if resp:
+                resp.close()
             return None, elapsed, "SSL Error", f"SSL certificate verification failed: {str(e)}"
         except requests.exceptions.ConnectTimeout as e:
             elapsed = time.perf_counter() - start_time
+            if resp:
+                resp.close()
             return None, elapsed, "Connection Timeout", f"Server connection timed out after {timeout}s: {str(e)}"
         except requests.exceptions.ReadTimeout as e:
             elapsed = time.perf_counter() - start_time
+            if resp:
+                resp.close()
             return None, elapsed, "Read Timeout", f"Server read timed out after {timeout}s: {str(e)}"
         except requests.exceptions.ConnectionError as e:
             elapsed = time.perf_counter() - start_time
-            return None, elapsed, "Connection Error", f"DNS or network connection failed: {str(e)}"
+            if resp:
+                resp.close()
+            return None, elapsed, "Connection Error", f"DNS resolution or network connection failed: {str(e)}"
         except requests.exceptions.TooManyRedirects as e:
             elapsed = time.perf_counter() - start_time
+            if resp:
+                resp.close()
             return None, elapsed, "Redirect Loop", f"Exceeded maximum redirects: {str(e)}"
         except requests.exceptions.RequestException as e:
             elapsed = time.perf_counter() - start_time
+            if resp:
+                resp.close()
             return None, elapsed, "Request Exception", str(e)
         except Exception as e:
             elapsed = time.perf_counter() - start_time
+            if resp:
+                resp.close()
             return None, elapsed, "Unexpected Exception", f"{type(e).__name__}: {str(e)}"
 
     def crawl_stream(
@@ -130,9 +193,15 @@ class WebCrawler:
         crawl_start_perf = time.perf_counter()
         session_id = f"crawl_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
 
-        # Reset state
-        self.visited_urls.clear()
+        # Reset all state tracking sets
         self.discovered_urls.clear()
+        self.queued_urls.clear()
+        self.attempted_urls.clear()
+        self.crawled_urls.clear()
+        self.failed_urls.clear()
+        self.skipped_urls.clear()
+        self.visited_urls.clear()
+
         self.page_results.clear()
         self.failures.clear()
         self.graph_edges.clear()
@@ -149,6 +218,7 @@ class WebCrawler:
                 error_message="The provided starting URL is malformed or does not use http/https.",
             )
             self.failures.append(failure)
+            self.failed_urls.add(raw_start or "None")
             summary = CrawlSessionSummary(
                 session_id=session_id,
                 start_url=raw_start,
@@ -179,8 +249,9 @@ class WebCrawler:
 
         start_domain = get_domain(normalized_start)
 
-        # Queue contains items: (url, depth, parent_url)
+        # Queue contains tuples: (url, depth, parent_url)
         queue = collections.deque([(normalized_start, 0, None)])
+        self.queued_urls.add(normalized_start)
         self.visited_urls.add(normalized_start)
         self.discovered_urls.add(normalized_start)
 
@@ -195,9 +266,14 @@ class WebCrawler:
         )
 
         max_depth_reached = 0
+        total_attempts = 0
+        # Safety ceiling on total attempts to avoid infinite loops if dead links dominate
+        max_attempts_limit = self.config.max_attempts or max(self.config.max_pages * 5, 200)
 
-        while queue and len(self.page_results) < self.config.max_pages:
+        while queue and len(self.page_results) < self.config.max_pages and total_attempts < max_attempts_limit:
             current_url, current_depth, parent_url = queue.popleft()
+            self.attempted_urls.add(current_url)
+            total_attempts += 1
             max_depth_reached = max(max_depth_reached, current_depth)
 
             # Inform UI of pending fetch
@@ -211,9 +287,10 @@ class WebCrawler:
                 message=f"Crawling depth {current_depth}... Processing {len(self.page_results) + 1}/{self.config.max_pages} pages",
             )
 
-            # Check robots.txt if requested
+            # Check robots.txt policy if requested
             if self.config.respect_robots:
-                if not self.robots_manager.is_allowed(current_url, self.config.user_agent):
+                allowed = self.robots_manager.is_allowed(current_url, self.config.user_agent)
+                if not allowed:
                     fail = CrawlFailure(
                         url=current_url,
                         depth=current_depth,
@@ -221,6 +298,7 @@ class WebCrawler:
                         error_message="Access disallowed by host robots.txt policy.",
                     )
                     self.failures.append(fail)
+                    self.skipped_urls.add(current_url)
                     yield CrawlProgressEvent(
                         event_type="skipped",
                         current_url=current_url,
@@ -233,43 +311,59 @@ class WebCrawler:
                     )
                     continue
 
-            # Polite request delay
+            # Polite request delay between fetches
             if self.config.request_delay > 0 and len(self.page_results) > 0:
                 time.sleep(self.config.request_delay)
 
-            # Fetch page
+            # Fetch page via HTTP
             resp, elapsed, err_type, err_msg = self.fetch_page(current_url, self.config.timeout)
 
-            # Handle network/connection failures
-            if resp is None:
+            # Handle network/connection/status errors
+            if err_type is not None:
                 fail = CrawlFailure(
                     url=current_url,
                     depth=current_depth,
-                    error_type=err_type or "Network Error",
-                    error_message=err_msg or "Failed to connect to host.",
+                    error_type=err_type,
+                    error_message=err_msg or "Failed to retrieve page.",
                 )
                 self.failures.append(fail)
+                if err_type in ("Non-HTML Resource", "Oversized Resource"):
+                    self.skipped_urls.add(current_url)
+                else:
+                    self.failed_urls.add(current_url)
                 yield CrawlProgressEvent(
-                    event_type="failure",
+                    event_type="failure" if err_type not in ("Non-HTML Resource", "Oversized Resource") else "skipped",
                     current_url=current_url,
                     current_depth=current_depth,
                     pages_crawled=len(self.page_results),
                     discovered_count=len(self.discovered_urls),
                     failed_count=len(self.failures),
-                    message=f"Failed {current_url}: {fail.error_type} - {fail.error_message}",
+                    message=f"Failed/Skipped {current_url}: {err_type} - {err_msg}",
                     failure=fail,
                 )
                 continue
 
-            # Handle HTTP status code errors (4xx, 5xx)
+            if resp is None:
+                fail = CrawlFailure(
+                    url=current_url,
+                    depth=current_depth,
+                    error_type="Network Error",
+                    error_message="Failed to connect to host.",
+                )
+                self.failures.append(fail)
+                self.failed_urls.add(current_url)
+                continue
+
+            # Status code check (handles mocked fetch_page in tests as well)
             if resp.status_code >= 400:
                 fail = CrawlFailure(
                     url=current_url,
                     depth=current_depth,
                     error_type=f"HTTP {resp.status_code}",
-                    error_message=f"Server returned HTTP status code {resp.status_code} ({resp.reason}).",
+                    error_message=f"Server returned HTTP {resp.status_code} ({resp.reason or ''})",
                 )
                 self.failures.append(fail)
+                self.failed_urls.add(current_url)
                 yield CrawlProgressEvent(
                     event_type="failure",
                     current_url=current_url,
@@ -282,16 +376,17 @@ class WebCrawler:
                 )
                 continue
 
-            # Validate Content-Type
-            content_type = resp.headers.get("Content-Type", "")
+            # Content-Type check (handles mocked fetch_page in tests as well)
             if not self.is_html_response(resp):
+                c_type = resp.headers.get("Content-Type", "")
                 fail = CrawlFailure(
                     url=current_url,
                     depth=current_depth,
                     error_type="Non-HTML Resource",
-                    error_message=f"Skipped non-HTML content type: {content_type}",
+                    error_message=f"Skipped non-HTML content type: {c_type}",
                 )
                 self.failures.append(fail)
+                self.skipped_urls.add(current_url)
                 yield CrawlProgressEvent(
                     event_type="skipped",
                     current_url=current_url,
@@ -304,9 +399,13 @@ class WebCrawler:
                 )
                 continue
 
+            # Determine final URL after any redirects for accurate relative link resolution
+            final_url = resp.url if resp.url else current_url
+            content_type = resp.headers.get("Content-Type", "")
+
             # Parse HTML content
             parsed_data = self.extract_links(
-                url=current_url,
+                url=final_url,
                 html=resp.text,
                 base_domain=start_domain,
             )
@@ -329,6 +428,7 @@ class WebCrawler:
                 parent_url=parent_url,
             )
             self.page_results.append(page_res)
+            self.crawled_urls.add(current_url)
 
             # Track graph edge from parent to current page
             if parent_url:
@@ -352,24 +452,28 @@ class WebCrawler:
 
             # BFS expansion to next depth if current_depth < max_depth
             if current_depth < self.config.max_depth:
-                # Filter candidates for next level
-                candidates = parsed_data["internal_urls"]
-                if not self.config.stay_on_domain:
-                    # If allowed to leave domain, include external HTML links
-                    candidates = candidates + parsed_data["external_urls"]
+                # Select eligible candidates based on domain policy
+                if self.config.stay_on_domain:
+                    candidates = parsed_data["internal_urls"]
+                else:
+                    candidates = parsed_data["internal_urls"] + parsed_data["external_urls"]
 
                 for link in candidates:
-                    # Prevent duplicate crawl visits
-                    if link not in self.visited_urls:
+                    # Prevent duplicate queueing
+                    if link not in self.queued_urls:
                         # Skip binary links
                         if is_binary_url(link):
+                            self.skipped_urls.add(link)
                             continue
 
                         # Domain constraint check
-                        if self.config.stay_on_domain and not is_same_domain(link, start_domain):
+                        if self.config.stay_on_domain and not is_same_domain(
+                            link, start_domain, allow_subdomains=self.config.allow_subdomains
+                        ):
                             continue
 
-                        # Mark visited immediately to prevent duplicate queueing
+                        # Enqueue and mark queued immediately
+                        self.queued_urls.add(link)
                         self.visited_urls.add(link)
                         queue.append((link, current_depth + 1, current_url))
 
@@ -412,7 +516,8 @@ class WebCrawler:
     def crawl(self, config: Optional[CrawlConfig] = None) -> Dict[str, Any]:
         """
         Synchronous batch crawl execution without event streaming.
-        Returns dictionary containing summary, page_results, failures, and graph_edges.
+        Returns dictionary containing summary, page_results, failures, graph_edges,
+        and state tracking sets.
         """
         gen = self.crawl_stream(config)
         summary = None
@@ -428,5 +533,10 @@ class WebCrawler:
             "failures": self.failures,
             "graph_edges": self.graph_edges,
             "discovered_urls": list(self.discovered_urls),
+            "queued_urls": list(self.queued_urls),
+            "attempted_urls": list(self.attempted_urls),
+            "crawled_urls": list(self.crawled_urls),
+            "failed_urls": list(self.failed_urls),
+            "skipped_urls": list(self.skipped_urls),
             "visited_urls": list(self.visited_urls),
         }

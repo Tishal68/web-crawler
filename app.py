@@ -109,6 +109,24 @@ def load_preset_card_callback(preset_title: str):
         st.session_state["console_preset_select"] = preset_title
 
 
+def reset_crawl_state_callback():
+    """Reset active session state and restore default configuration safely before widget instantiation."""
+    st.session_state["crawl_summary"] = None
+    st.session_state["page_results"] = []
+    st.session_state["failures"] = []
+    st.session_state["graph_edges"] = []
+    st.session_state["discovered_urls"] = []
+    st.session_state["input_target_url"] = "https://en.wikipedia.org/wiki/Web_crawler"
+    st.session_state["input_max_depth"] = 2
+    st.session_state["input_max_pages"] = 30
+    st.session_state["input_timeout"] = 10.0
+    st.session_state["input_delay"] = 0.2
+    st.session_state["chk_stay_domain"] = True
+    st.session_state["chk_robots"] = True
+    st.session_state["chk_sqlite"] = True
+    st.session_state["console_preset_select"] = "⚡ Presets: Select Target..."
+
+
 # --- Main Cyber Command Center ---
 render_header()
 
@@ -149,7 +167,7 @@ with col_btn:
     btn_start = st.button("⚡ Start Crawl", type="primary", use_container_width=True)
 
 with col_clr:
-    btn_clear = st.button("🧹 Clear", type="secondary", use_container_width=True)
+    btn_clear = st.button("🧹 Clear", type="secondary", use_container_width=True, on_click=reset_crawl_state_callback)
 
 with st.expander("⚙️ Traversal Parameters & Politeness Policies", expanded=False):
     col_d, col_p, col_t, col_w = st.columns(4)
@@ -209,15 +227,6 @@ with st.expander("⚙️ Traversal Parameters & Politeness Policies", expanded=F
         )
 
 st.markdown("</div>", unsafe_allow_html=True)
-
-# Handle Reset / Clear action
-if btn_clear:
-    st.session_state["crawl_summary"] = None
-    st.session_state["page_results"] = []
-    st.session_state["failures"] = []
-    st.session_state["graph_edges"] = []
-    st.session_state["discovered_urls"] = []
-    st.rerun()
 
 # Handle Crawl Execution
 if btn_start:

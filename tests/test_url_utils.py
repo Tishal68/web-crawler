@@ -1,5 +1,7 @@
 """
 Unit tests for URL validation, normalization, and filtering utilities.
+Includes RFC 3986 edge cases: IPv6, userinfo, port bounds, percent encoding,
+query sorting, and subdomain policies.
 """
 
 import pytest
@@ -32,6 +34,12 @@ class TestUrlValidation:
         assert not is_valid_url("htp://broken")
         assert not is_valid_url("http://")
 
+    def test_port_validation_in_is_valid_url(self):
+        assert is_valid_url("http://example.com:8080")
+        assert not is_valid_url("http://example.com:999999")
+        assert not is_valid_url("http://example.com:0")
+        assert not is_valid_url("http://example.com:invalidport")
+
 
 class TestBinaryFilter:
     def test_binary_extensions_detected(self):
@@ -52,11 +60,15 @@ class TestDomainMatching:
     def test_get_domain(self):
         assert get_domain("https://EXAMPLE.COM/page") == "example.com"
         assert get_domain("http://sub.test.org:8080/foo") == "sub.test.org"
+        assert get_domain("http://user:pass@example.com:80/path") == "example.com"
+        assert get_domain("http://[::1]:8080/path") == "::1"
 
     def test_is_same_domain(self):
         base = "example.com"
         assert is_same_domain("https://example.com/page", base)
         assert is_same_domain("https://blog.example.com/post", base, allow_subdomains=True)
+        assert not is_same_domain("https://blog.example.com/post", base, allow_subdomains=False)
+        assert not is_same_domain("https://notexample.com/page", base)
         assert not is_same_domain("https://other.com/page", base)
 
 
@@ -80,11 +92,35 @@ class TestUrlNormalization:
         assert normalize_url("https://example.com:443/home") == "https://example.com/home"
         assert normalize_url("https://example.com:8443/home") == "https://example.com:8443/home"
 
+    def test_ipv6_normalization(self):
+        assert normalize_url("http://[::1]:8080/path") == "http://[::1]:8080/path"
+        assert normalize_url("http://[::1]:80/path") == "http://[::1]/path"
+        assert normalize_url("https://[2001:db8::1]:443/") == "https://[2001:db8::1]"
+
+    def test_userinfo_preserved(self):
+        assert normalize_url("http://crawler:secret@example.com/dashboard") == "http://crawler:secret@example.com/dashboard"
+        assert normalize_url("http://admin@example.com/info") == "http://admin@example.com/info"
+
+    def test_malformed_port_returns_none(self):
+        assert normalize_url("http://example.com:999999/path") is None
+        assert normalize_url("http://example.com:0/path") is None
+        assert normalize_url("http://example.com:abc/path") is None
+
+    def test_percent_encoding_unreserved_characters(self):
+        # %7E is '~', %41 is 'A', %2D is '-'
+        assert normalize_url("https://example.com/%7Euser/%41/test%2Dfile") == "https://example.com/~user/A/test-file"
+        # Reserved %20 (space) remains percent-encoded
+        assert normalize_url("https://example.com/my%20page") == "https://example.com/my%20page"
+
     def test_sort_query_parameters(self):
         url1 = "https://example.com/search?b=2&a=1"
         url2 = "https://example.com/search?a=1&b=2"
         assert normalize_url(url1) == normalize_url(url2)
         assert normalize_url(url1) == "https://example.com/search?a=1&b=2"
+
+    def test_duplicate_keys_and_blank_query_params(self):
+        url = "https://example.com/filter?tag=science&tag=art&empty="
+        assert normalize_url(url) == "https://example.com/filter?empty=&tag=art&tag=science"
 
     def test_redundant_slashes_and_trailing_slash(self):
         assert normalize_url("https://example.com//a//b/") == "https://example.com/a/b"
