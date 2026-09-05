@@ -199,6 +199,20 @@ def run_verification():
 
     time.sleep(0.2)
 
+    from crawler.url_utils import is_safe_target_url as real_is_safe
+    def fixture_safe_check(u, **kw):
+        if f"127.0.0.1:{port}" in u:
+            return True, None
+        return real_is_safe(u, **kw)
+
+    from unittest.mock import patch
+    patcher1 = patch("crawler.crawler.is_safe_target_url", side_effect=fixture_safe_check)
+    patcher2 = patch("crawler.url_utils.is_safe_target_url", side_effect=fixture_safe_check)
+    patcher3 = patch("crawler.robots.is_safe_target_url", side_effect=fixture_safe_check)
+    patcher1.start()
+    patcher2.start()
+    patcher3.start()
+
     try:
         # 2. Test Depth 0 Behavior
         print("\n[2/6] Verifying Depth 0 (Seed page only)...")
@@ -287,6 +301,9 @@ def run_verification():
         print("!" * 70)
         sys.exit(1)
     finally:
+        patcher1.stop()
+        patcher2.stop()
+        patcher3.stop()
         server.shutdown()
 
 

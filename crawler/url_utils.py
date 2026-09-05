@@ -6,7 +6,9 @@ and filtering.
 from urllib.parse import urlparse, urlunparse, urljoin, parse_qsl, urlencode
 import posixpath
 import re
-from typing import Optional
+import ipaddress
+import socket
+from typing import Optional, Tuple, Any, Union
 
 # Common binary and non-HTML media extensions to skip crawling
 BINARY_EXTENSIONS = {
@@ -240,3 +242,183 @@ def normalize_url(url: str, base_url: Optional[str] = None) -> Optional[str]:
         return normalized
     except Exception:
         return None
+
+
+# Prohibited private, loopback, and reserved IPv4 networks
+PROHIBITED_IPV4_NETWORKS = [
+    ipaddress.ip_network("0.0.0.0/8"),        # Current network
+    ipaddress.ip_network("10.0.0.0/8"),       # RFC 1918 Private
+    ipaddress.ip_network("100.64.0.0/10"),    # RFC 6598 Carrier-grade NAT
+    ipaddress.ip_network("127.0.0.0/8"),      # Loopback
+    ipaddress.ip_network("169.254.0.0/16"),   # Link-Local & Cloud Metadata
+    ipaddress.ip_network("172.16.0.0/12"),    # RFC 1918 Private
+    ipaddress.ip_network("192.0.0.0/24"),     # RFC 6890 IETF Protocol Assignments
+    ipaddress.ip_network("192.0.2.0/24"),     # RFC 5737 TEST-NET-1
+    ipaddress.ip_network("192.168.0.0/16"),   # RFC 1918 Private
+    ipaddress.ip_network("198.18.0.0/15"),    # RFC 2544 Benchmarking
+    ipaddress.ip_network("198.51.100.0/24"),  # RFC 5737 TEST-NET-2
+    ipaddress.ip_network("203.0.113.0/24"),   # RFC 5737 TEST-NET-3
+    ipaddress.ip_network("224.0.0.0/4"),      # Multicast
+    ipaddress.ip_network("240.0.0.0/4"),      # Reserved
+    ipaddress.ip_network("255.255.255.255/32"), # Broadcast
+]
+
+# Prohibited IPv6 networks
+PROHIBITED_IPV6_NETWORKS = [
+    ipaddress.ip_network("::/128"),           # Unspecified
+    ipaddress.ip_network("::1/128"),          # Loopback
+    ipaddress.ip_network("fc00::/7"),         # Unique Local Address (RFC 4193)
+    ipaddress.ip_network("fe80::/10"),        # Link-Local Unicast
+    ipaddress.ip_network("ff00::/8"),         # Multicast
+    ipaddress.ip_network("2001:db8::/32"),    # Documentation
+]
+
+PROHIBITED_HOST_PATTERNS = {
+    "localhost",
+    "127.0.0.1",
+    "::1",
+    "0.0.0.0",
+    "metadata.google.internal",
+    "instance-data",
+}
+
+PROHIBITED_DOMAIN_SUFFIXES = (
+    ".localhost",
+    ".local",
+    ".internal",
+    ".lan",
+    ".arpa",
+    ".home",
+    ".corp",
+)
+
+
+def is_safe_ip(ip: Union[ipaddress.IPv4Address, ipaddress.IPv6Address]) -> bool:
+    """
+    Validate that an IP address is a publicly routable target, blocking loopback,
+    private RFC 1918, link-local, carrier-grade NAT, cloud metadata, and reserved networks.
+    """
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
+        ip = ip.ipv4_mapped
+
+    if (
+        ip.is_loopback or
+        ip.is_private or
+        ip.is_link_local or
+        ip.is_multicast or
+        ip.is_reserved or
+        ip.is_unspecified
+    ):
+        return False
+
+    if isinstance(ip, ipaddress.IPv4Address):
+        for net in PROHIBITED_IPV4_NETWORKS:
+            if ip in net:
+                return False
+        # Explicit check for AWS/GCP/Azure link-local cloud metadata (169.254.169.254)
+        if str(ip) == "169.254.169.254":
+            return False
+    elif isinstance(ip, ipaddress.IPv6Address):
+        for net in PROHIBITED_IPV6_NETWORKS:
+            if ip in net:
+                return False
+        if str(ip) in ("::1", "fd00:ec2::254"):
+            return False
+
+    return True
+
+
+def is_safe_target_url(url: str, resolve_dns: bool = True) -> Tuple[bool, Optional[str]]:
+    """
+    SSRF filter: verify that a URL does not target loopback, private networks,
+    link-local services, cloud metadata services, or resolve to internal hosts.
+    Returns: (is_safe, error_message_if_blocked)
+    """
+    if not is_valid_url(url):
+        return False, "Invalid URL format or unsupported scheme"
+
+    try:
+        parsed = urlparse(url)
+        raw_host = (parsed.hostname or "").lower().strip()
+        if not raw_host:
+            return False, "Missing hostname in target URL"
+
+        # Check prohibited host names and domain suffixes
+        if raw_host in PROHIBITED_HOST_PATTERNS or any(raw_host.endswith(sfx) for sfx in PROHIBITED_DOMAIN_SUFFIXES):
+            return False, f"Prohibited internal host or domain suffix: {raw_host}"
+
+        # Clean IPv6 bracket notation
+        clean_host = raw_host.strip("[]")
+
+        # Check if hostname is an IP literal
+        try:
+            ip_literal = ipaddress.ip_address(clean_host)
+            if not is_safe_ip(ip_literal):
+                return False, f"Prohibited IP address target: {clean_host} (private, loopback, or metadata)"
+            return True, None
+        except ValueError:
+            pass
+
+        # Check if hostname is an integer representation of an IP (e.g. 2130706433 for 127.0.0.1)
+        if clean_host.isdigit():
+            try:
+                ip_int = ipaddress.ip_address(int(clean_host))
+                if not is_safe_ip(ip_int):
+                    return False, f"Prohibited integer IP address target: {clean_host}"
+                return True, None
+            except ValueError:
+                pass
+
+        if resolve_dns:
+            port = parsed.port or (443 if parsed.scheme.lower() == "https" else 80)
+            try:
+                addr_info = socket.getaddrinfo(clean_host, port, proto=socket.IPPROTO_TCP)
+                if not addr_info:
+                    return False, f"DNS resolution yielded no address records for host {clean_host}"
+
+                for item in addr_info:
+                    sockaddr = item[4]
+                    ip_str = sockaddr[0]
+                    try:
+                        resolved_ip = ipaddress.ip_address(ip_str)
+                        if not is_safe_ip(resolved_ip):
+                            return False, f"Host {clean_host} resolved to prohibited IP {ip_str} (loopback/private/metadata)"
+                    except ValueError:
+                        return False, f"Host {clean_host} resolved to invalid IP {ip_str}"
+            except socket.gaierror as e:
+                return False, f"DNS resolution failed for {clean_host}: {e}"
+            except Exception as e:
+                return False, f"DNS verification failed for {clean_host}: {e}"
+
+        return True, None
+    except Exception as e:
+        return False, f"URL security validation exception: {e}"
+
+
+def sanitize_csv_cell(val: Any) -> Any:
+    """
+    Sanitize values to protect against CSV Formula Injection (DDE injection).
+    If a string starts with '=', '+', '-', '@', '\t', or '\r', prefix with a single quote.
+    """
+    if isinstance(val, str):
+        if val and val[0] in ("=", "+", "-", "@", "\t", "\r"):
+            return "'" + val
+    return val
+
+
+def sanitize_dataframe_for_csv(df: Any) -> Any:
+    """
+    Sanitize all string columns of a pandas DataFrame before CSV export
+    to neutralize CSV Formula Injection.
+    """
+    try:
+        import pandas as pd
+        if not isinstance(df, pd.DataFrame):
+            return df
+        df_clean = df.copy()
+        for col in df_clean.columns:
+            if df_clean[col].dtype == object or pd.api.types.is_string_dtype(df_clean[col]):
+                df_clean[col] = df_clean[col].apply(sanitize_csv_cell)
+        return df_clean
+    except Exception:
+        return df

@@ -6,6 +6,7 @@ Futuristic Cyber-Analytics Command Center visual theme.
 """
 
 from datetime import datetime
+import html
 import streamlit as st
 
 from crawler.models import CrawlConfig, CrawlSessionSummary
@@ -125,6 +126,13 @@ def reset_crawl_state_callback():
     st.session_state["chk_robots"] = True
     st.session_state["chk_sqlite"] = True
     st.session_state["console_preset_select"] = "⚡ Presets: Select Target..."
+    st.session_state["is_crawling"] = False
+    st.session_state.pop("results_search_box", None)
+    st.session_state.pop("results_depth_select", None)
+    st.session_state.pop("results_status_select", None)
+    st.session_state.pop("explorer_url_select", None)
+    st.session_state.pop("history_session_select", None)
+    st.session_state.pop("history_loaded_notification", None)
 
 
 # --- Main Cyber Command Center ---
@@ -163,8 +171,10 @@ with col_url:
         label_visibility="collapsed",
     )
 
+is_running = st.session_state.get("is_crawling", False)
+
 with col_btn:
-    btn_start = st.button("⚡ Start Crawl", type="primary", use_container_width=True)
+    btn_start = st.button("⚡ Start Crawl", type="primary", use_container_width=True, disabled=is_running)
 
 with col_clr:
     btn_clear = st.button("🧹 Clear", type="secondary", use_container_width=True, on_click=reset_crawl_state_callback)
@@ -251,9 +261,10 @@ if btn_start:
         exec_summary: CrawlSessionSummary = None
         stream_log = []
 
-        # Execute generator stream for live UI updates
-        stream = crawler.crawl_stream(config)
+        st.session_state["is_crawling"] = True
         try:
+            # Execute generator stream for live UI updates
+            stream = crawler.crawl_stream(config)
             while True:
                 event = next(stream)
 
@@ -269,14 +280,15 @@ if btn_start:
                 display_url = event.current_url if len(event.current_url) <= 85 else event.current_url[:82] + "..."
                 progress_ui["status_text"].markdown(f"**Active Target:** `{display_url}`")
 
-                # Terminal-styled streaming console log
-                glyph = "✓" if event.event_type in ("page_crawled", "seed_started", "crawl_started") else "✕"
+                # Terminal-styled streaming console log with strict XSS escaping
+                glyph = "✓" if event.event_type in ("page_crawled", "seed_started", "crawl_started", "success") else "✕"
                 cls = "stream-success" if glyph == "✓" else "stream-fail"
                 time_now = datetime.now().strftime("%H:%M:%S")
                 short_url = event.current_url.replace("https://", "").replace("http://", "")
                 if len(short_url) > 42:
                     short_url = short_url[:39] + "..."
-                stream_log.append(f"[{time_now}] <span class='{cls}'>{glyph}</span> <span class='stream-depth'>DEPTH {event.current_depth}</span>  {short_url}")
+                safe_short_url = html.escape(short_url)
+                stream_log.append(f"[{time_now}] <span class='{cls}'>{glyph}</span> <span class='stream-depth'>DEPTH {event.current_depth}</span>  {safe_short_url}")
                 if len(stream_log) > 5:
                     stream_log.pop(0)
 
@@ -296,6 +308,8 @@ if btn_start:
                 )
         except StopIteration as e:
             exec_summary = e.value
+        finally:
+            st.session_state["is_crawling"] = False
 
         # Save session state
         st.session_state["crawl_summary"] = exec_summary
@@ -375,17 +389,20 @@ with tab_mission:
         p_cols = st.columns(4)
         for i, (p_title, p_spec) in enumerate(PRESETS.items()):
             with p_cols[i]:
+                safe_preset_title = html.escape(p_title)
+                safe_preset_url = html.escape(p_spec['url'])
+                safe_preset_desc = html.escape(p_spec['desc'])
                 st.markdown(f"""
                     <div class="kpi-card" style="padding: 0.85rem 1rem; min-height: 130px; display: flex; flex-direction: column; justify-content: space-between; margin-bottom: 0.4rem;">
                         <div>
                             <div style="font-size: 0.82rem; font-weight: 800; color: #FFFFFF; margin-bottom: 0.2rem;">
-                                {p_title}
+                                {safe_preset_title}
                             </div>
                             <div style="font-size: 0.70rem; color: #22D3EE; font-family: 'JetBrains Mono', monospace; word-break: break-all; margin-bottom: 0.3rem;">
-                                {p_spec['url']}
+                                {safe_preset_url}
                             </div>
                             <div style="font-size: 0.72rem; color: #94A3B8; line-height: 1.35;">
-                                {p_spec['desc']}
+                                {safe_preset_desc}
                             </div>
                         </div>
                     </div>

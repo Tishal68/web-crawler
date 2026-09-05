@@ -14,7 +14,7 @@ from typing import Optional, List, Dict, Any
 from crawler.models import CrawlConfig, CrawlSessionSummary, PageResult, CrawlFailure
 from crawler.crawler import WebCrawler
 from crawler.database import CrawlDatabase
-from crawler.url_utils import normalize_url, is_valid_url
+from crawler.url_utils import normalize_url, is_valid_url, sanitize_dataframe_for_csv
 from .terminal import ColorManager, format_progress_bar
 from .formatters import (
     format_header,
@@ -132,7 +132,8 @@ def export_results(
                 df = pd.DataFrame([p.to_dict() for p in pages])
             else:
                 df = pd.DataFrame(columns=["URL", "Title", "Depth", "Status", "Links", "Internal", "External", "Response Time (s)", "Domain"])
-            df.to_csv(norm_path, index=False, encoding="utf-8")
+            df_sanitized = sanitize_dataframe_for_csv(df)
+            df_sanitized.to_csv(norm_path, index=False, encoding="utf-8")
         elif norm_path.lower().endswith(".json"):
             data: Dict[str, Any] = {
                 "summary": summary.to_dict() if summary else {},

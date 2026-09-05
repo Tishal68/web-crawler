@@ -8,6 +8,8 @@ from urllib.parse import urlparse
 from typing import Dict, Optional, Tuple, NamedTuple
 import requests
 
+from .url_utils import is_safe_target_url
+
 
 class RobotsCheckResult(NamedTuple):
     """Structured result of a robots.txt authorization check."""
@@ -61,6 +63,15 @@ class RobotsManager:
             return self._cache[host]
 
         robots_url = self._get_robots_url(url)
+        is_safe, ssrf_err = is_safe_target_url(robots_url, resolve_dns=True)
+        if not is_safe:
+            entry = HostRobotsEntry(
+                status="SSRF_BLOCKED",
+                error_message=f"SSRF policy blocked robots.txt lookup: {ssrf_err}",
+            )
+            self._cache[host] = entry
+            return entry
+
         rp = RobotFileParser()
         rp.set_url(robots_url)
 
@@ -162,6 +173,13 @@ class RobotsManager:
                 False,
                 "SERVER_ERROR_DISALLOWED",
                 f"Disallowed (RFC 9309 § 2.3.1.3): robots.txt returned HTTP {entry.status_code} server error.",
+            )
+
+        elif entry.status == "SSRF_BLOCKED":
+            return RobotsCheckResult(
+                False,
+                "SSRF_BLOCKED",
+                f"Disallowed (SSRF Protection): {entry.error_message}",
             )
 
         elif entry.status in ("TIMEOUT", "CONNECTION_ERROR", "SSL_ERROR", "FETCH_ERROR"):

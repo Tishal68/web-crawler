@@ -4,6 +4,7 @@ Styled with a high-end cyber-analytics dark aesthetic.
 """
 
 from typing import List, Dict, Tuple
+import html
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -368,12 +369,15 @@ def create_crawl_network_graph(
         else:
             node_size.append(12)
 
+        safe_node_title = html.escape(str(data.get('title', 'Page')))
+        safe_node_url = html.escape(str(node))
+        safe_node_domain = html.escape(str(data.get('domain', '')))
         hover_info = (
-            f"<b>{data.get('title', 'Page')}</b><br>"
+            f"<b>{safe_node_title}</b><br>"
             f"Depth Level: {depth}<br>"
-            f"Target URL: {node}<br>"
+            f"Target URL: {safe_node_url}<br>"
             f"Hyperlinks: {data.get('links', 0)}<br>"
-            f"Host Domain: {data.get('domain', '')}"
+            f"Host Domain: {safe_node_domain}"
         )
         node_text.append(hover_info)
 

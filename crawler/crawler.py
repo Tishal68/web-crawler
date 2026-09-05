@@ -9,6 +9,7 @@ import time
 import uuid
 from datetime import datetime
 from typing import Dict, Any, List, Set, Tuple, Optional, Generator
+from urllib.parse import urljoin
 
 import requests
 
@@ -25,12 +26,22 @@ from .url_utils import (
     is_binary_url,
     get_domain,
     is_same_domain,
+    is_safe_target_url,
 )
 from .parser import parse_page_html
 from .robots import RobotsManager
 
 # Maximum allowed download size for HTML pages (10 MB)
 MAX_RESPONSE_BYTES = 10 * 1024 * 1024
+
+
+def _safe_close(resp: Optional[requests.Response]) -> None:
+    """Safely close a requests Response without raising if raw socket is missing or already closed."""
+    if resp is not None:
+        try:
+            resp.close()
+        except Exception:
+            pass
 
 
 class WebCrawler:
@@ -98,34 +109,70 @@ class WebCrawler:
         }
 
         start_time = time.perf_counter()
+        current_fetch_url = url
         resp = None
+        max_redirect_hops = 10
+        redirect_hops = 0
+
         try:
-            resp = self.session.get(
-                url,
-                headers=headers,
-                timeout=timeout,
-                allow_redirects=True,
-                stream=True,
-                verify=True,
-            )
+            while True:
+                # Validate SSRF target security on every redirect hop before connecting
+                is_safe, ssrf_err = is_safe_target_url(current_fetch_url, resolve_dns=True)
+                if not is_safe:
+                    _safe_close(resp)
+                    elapsed = time.perf_counter() - start_time
+                    return None, elapsed, "SSRF Blocked", f"Request to {current_fetch_url} prohibited by security policy: {ssrf_err}"
+
+                resp = self.session.get(
+                    current_fetch_url,
+                    headers=headers,
+                    timeout=timeout,
+                    allow_redirects=False,
+                    stream=True,
+                    verify=True,
+                )
+
+                # Check for HTTP redirect response codes
+                if resp.is_redirect or resp.status_code in (301, 302, 303, 307, 308):
+                    location = resp.headers.get("Location")
+                    if not location:
+                        break
+                    _safe_close(resp)
+                    redirect_hops += 1
+                    if redirect_hops > max_redirect_hops:
+                        elapsed = time.perf_counter() - start_time
+                        return None, elapsed, "Redirect Loop", f"Exceeded maximum redirects limit of {max_redirect_hops}"
+
+                    next_url = urljoin(current_fetch_url, location)
+                    norm_next = normalize_url(next_url)
+                    if not norm_next or not is_valid_url(norm_next):
+                        elapsed = time.perf_counter() - start_time
+                        return None, elapsed, "Invalid Redirect", f"Redirect target is malformed or invalid: {location}"
+                    current_fetch_url = norm_next
+                    continue
+                else:
+                    break
+
             elapsed = time.perf_counter() - start_time
+            if resp:
+                resp.url = current_fetch_url
 
             # Status code check for 4xx and 5xx
             if resp.status_code >= 400:
-                resp.close()
+                _safe_close(resp)
                 return resp, elapsed, f"HTTP {resp.status_code}", f"Server returned HTTP {resp.status_code} ({resp.reason})"
 
             # Content-Type early inspection
             if not self.is_html_response(resp):
                 c_type = resp.headers.get("Content-Type", "Unknown")
-                resp.close()
+                _safe_close(resp)
                 return resp, elapsed, "Non-HTML Resource", f"Skipped non-HTML Content-Type: {c_type}"
 
             # Content-Length safety check
             content_len_header = resp.headers.get("Content-Length")
             if content_len_header and content_len_header.isdigit():
                 if int(content_len_header) > MAX_RESPONSE_BYTES:
-                    resp.close()
+                    _safe_close(resp)
                     return resp, elapsed, "Oversized Resource", f"Content-Length {content_len_header} exceeds {MAX_RESPONSE_BYTES} bytes limit"
 
             # Stream body with size ceiling to prevent memory exhaustion
@@ -135,7 +182,7 @@ class WebCrawler:
                 chunks.append(chunk)
                 bytes_received += len(chunk)
                 if bytes_received > MAX_RESPONSE_BYTES:
-                    resp.close()
+                    _safe_close(resp)
                     return resp, elapsed, "Oversized Resource", f"Stream exceeded maximum allowed limit of {MAX_RESPONSE_BYTES} bytes"
 
             # Populate response content cache
@@ -144,38 +191,31 @@ class WebCrawler:
 
         except requests.exceptions.SSLError as e:
             elapsed = time.perf_counter() - start_time
-            if resp:
-                resp.close()
+            _safe_close(resp)
             return None, elapsed, "SSL Error", f"SSL certificate verification failed: {str(e)}"
         except requests.exceptions.ConnectTimeout as e:
             elapsed = time.perf_counter() - start_time
-            if resp:
-                resp.close()
+            _safe_close(resp)
             return None, elapsed, "Connection Timeout", f"Server connection timed out after {timeout}s: {str(e)}"
         except requests.exceptions.ReadTimeout as e:
             elapsed = time.perf_counter() - start_time
-            if resp:
-                resp.close()
+            _safe_close(resp)
             return None, elapsed, "Read Timeout", f"Server read timed out after {timeout}s: {str(e)}"
         except requests.exceptions.ConnectionError as e:
             elapsed = time.perf_counter() - start_time
-            if resp:
-                resp.close()
+            _safe_close(resp)
             return None, elapsed, "Connection Error", f"DNS resolution or network connection failed: {str(e)}"
         except requests.exceptions.TooManyRedirects as e:
             elapsed = time.perf_counter() - start_time
-            if resp:
-                resp.close()
+            _safe_close(resp)
             return None, elapsed, "Redirect Loop", f"Exceeded maximum redirects: {str(e)}"
         except requests.exceptions.RequestException as e:
             elapsed = time.perf_counter() - start_time
-            if resp:
-                resp.close()
+            _safe_close(resp)
             return None, elapsed, "Request Exception", str(e)
         except Exception as e:
             elapsed = time.perf_counter() - start_time
-            if resp:
-                resp.close()
+            _safe_close(resp)
             return None, elapsed, "Unexpected Exception", f"{type(e).__name__}: {str(e)}"
 
     def crawl_stream(
@@ -243,6 +283,45 @@ class WebCrawler:
                 discovered_count=0,
                 failed_count=1,
                 message=f"Starting URL error: {failure.error_message}",
+                failure=failure,
+            )
+            return summary
+
+        # Verify start URL satisfies SSRF security policy
+        is_safe_start, ssrf_reason = is_safe_target_url(normalized_start, resolve_dns=False)
+        if not is_safe_start:
+            failure = CrawlFailure(
+                url=raw_start or "None",
+                depth=0,
+                error_type="SSRF Blocked",
+                error_message=f"Starting URL prohibited by security policy: {ssrf_reason}",
+            )
+            self.failures.append(failure)
+            self.failed_urls.add(raw_start or "None")
+            summary = CrawlSessionSummary(
+                session_id=session_id,
+                start_url=raw_start,
+                max_depth=self.config.max_depth,
+                max_pages=self.config.max_pages,
+                start_time=start_time_iso,
+                end_time=datetime.now().isoformat(),
+                elapsed_seconds=round(time.perf_counter() - crawl_start_perf, 2),
+                pages_crawled=0,
+                discovered_urls_count=0,
+                failed_urls_count=1,
+                total_internal_links=0,
+                total_external_links=0,
+                stay_on_domain=self.config.stay_on_domain,
+                max_depth_reached=0,
+            )
+            yield CrawlProgressEvent(
+                event_type="failure",
+                current_url=raw_start,
+                current_depth=0,
+                pages_crawled=0,
+                discovered_count=0,
+                failed_count=1,
+                message=f"Security Policy: {failure.error_message}",
                 failure=failure,
             )
             return summary
@@ -463,6 +542,11 @@ class WebCrawler:
                     if link not in self.queued_urls:
                         # Skip binary links
                         if is_binary_url(link):
+                            self.skipped_urls.add(link)
+                            continue
+
+                        # Security check: skip internal/loopback candidate URLs
+                        if not is_safe_target_url(link, resolve_dns=False)[0]:
                             self.skipped_urls.add(link)
                             continue
 

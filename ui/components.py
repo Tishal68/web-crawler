@@ -3,6 +3,7 @@ Futuristic Cyber-Analytics UI Components, design system, KPI cards, and glass pa
 """
 
 from typing import Optional, List
+import html
 import streamlit as st
 from crawler.models import CrawlSessionSummary, PageResult
 
@@ -631,9 +632,10 @@ def apply_custom_styles():
 
 def render_control_label(label: str):
     """Render compact cyan uppercase section label with subtle horizontal accent rule."""
+    safe_label = html.escape(label)
     st.markdown(f"""
         <div style="font-size: 0.68rem; font-weight: 800; letter-spacing: 0.10em; color: #22D3EE; text-transform: uppercase; margin-bottom: 0.22rem; display: flex; align-items: center; gap: 0.4rem;">
-            <span>{label}</span>
+            <span>{safe_label}</span>
             <div style="flex: 1; height: 1px; background: linear-gradient(90deg, rgba(34, 211, 238, 0.45), transparent);"></div>
         </div>
     """, unsafe_allow_html=True)
@@ -673,6 +675,10 @@ def render_completion_banner(summary: CrawlSessionSummary):
     if len(seed_display) > 52:
         seed_display = seed_display[:49] + "..."
         
+    safe_seed_display = html.escape(seed_display)
+    safe_seed_url = html.escape(summary.start_url, quote=True)
+    safe_session_id = html.escape(summary.session_id)
+
     policy_str = "DOMAIN-SCOPED" if summary.stay_on_domain else "CROSS-DOMAIN"
     fail_color = 'val-red' if summary.failed_urls_count > 0 else 'val-green'
     
@@ -683,8 +689,8 @@ def render_completion_banner(summary: CrawlSessionSummary):
                     <span class="pulse-beacon-green"></span> CRAWL COMPLETED // SESSION TELEMETRY
                 </div>
                 <div style="display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap;">
-                    <span class="seed-url-pill" title="{summary.start_url}">🎯 SEED: {seed_display}</span>
-                    <span class="session-id-tag">ID: {summary.session_id}</span>
+                    <span class="seed-url-pill" title="{safe_seed_url}">🎯 SEED: {safe_seed_display}</span>
+                    <span class="session-id-tag">ID: {safe_session_id}</span>
                 </div>
             </div>
             <div class="completion-grid">

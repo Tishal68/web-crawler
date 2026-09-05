@@ -10,6 +10,7 @@ Futuristic Cyber-Analytics Dashboard views:
 """
 
 import json
+import html
 from typing import List, Dict, Any, Optional
 
 import streamlit as st
@@ -21,6 +22,7 @@ from crawler.models import (
     CrawlSessionSummary,
 )
 from crawler.database import CrawlDatabase
+from crawler.url_utils import sanitize_dataframe_for_csv
 from .components import (
     render_kpi_cards,
     render_completion_banner,
@@ -174,12 +176,13 @@ def render_results_section(pages: List[PageResult], summary: CrawlSessionSummary
     )
 
     col_dl1, col_dl2, col_dl3 = st.columns(3)
+    safe_sid = "".join(c for c in summary.session_id if c.isalnum() or c in ("-", "_"))
     with col_dl1:
-        csv_data = filtered_df.to_csv(index=False).encode("utf-8")
+        csv_data = sanitize_dataframe_for_csv(filtered_df).to_csv(index=False).encode("utf-8")
         st.download_button(
             label="⬇ Download Results (CSV)",
             data=csv_data,
-            file_name=f"crawled_pages_{summary.session_id}.csv",
+            file_name=f"crawled_pages_{safe_sid}.csv",
             mime="text/csv",
             use_container_width=True,
         )
@@ -188,16 +191,16 @@ def render_results_section(pages: List[PageResult], summary: CrawlSessionSummary
         st.download_button(
             label="⬇ Download Full Data (JSON)",
             data=full_json,
-            file_name=f"crawl_full_{summary.session_id}.json",
+            file_name=f"crawl_full_{safe_sid}.json",
             mime="application/json",
             use_container_width=True,
         )
     with col_dl3:
-        summary_csv = pd.DataFrame([summary.to_dict()]).to_csv(index=False).encode("utf-8")
+        summary_csv = sanitize_dataframe_for_csv(pd.DataFrame([summary.to_dict()])).to_csv(index=False).encode("utf-8")
         st.download_button(
             label="⬇ Download Session Report (CSV)",
             data=summary_csv,
-            file_name=f"crawl_report_{summary.session_id}.csv",
+            file_name=f"crawl_report_{safe_sid}.csv",
             mime="text/csv",
             use_container_width=True,
         )
@@ -241,7 +244,7 @@ def render_failed_section(failures: List[CrawlFailure]):
         height=260,
     )
 
-    csv_fail = df_fail.to_csv(index=False).encode("utf-8")
+    csv_fail = sanitize_dataframe_for_csv(df_fail).to_csv(index=False).encode("utf-8")
     st.download_button(
         label="⬇ Download Failed URLs (CSV)",
         data=csv_fail,
@@ -264,6 +267,9 @@ def render_url_explorer(pages: List[PageResult]):
         return
 
     page_map = {f"[{p.depth}] {p.title[:55]} ({p.url})": p for p in pages}
+    if "explorer_url_select" in st.session_state and st.session_state["explorer_url_select"] not in page_map:
+        st.session_state["explorer_url_select"] = list(page_map.keys())[0]
+
     selected_key = st.selectbox(
         "Select a webpage to inspect its metadata and extracted hyperlinks:",
         options=list(page_map.keys()),
@@ -273,7 +279,12 @@ def render_url_explorer(pages: List[PageResult]):
     page = page_map[selected_key]
     status_class = "dot-green" if page.status_code == 200 else "dot-red"
 
-    # Futuristic Inspection Panel Glass Grid
+    # Futuristic Inspection Panel Glass Grid with strict XSS sanitization
+    safe_url = html.escape(page.url)
+    safe_title = html.escape(page.title)
+    safe_domain = html.escape(page.domain)
+    safe_type = html.escape(page.content_type or "text/html")
+
     st.markdown(f"""
         <div class="kpi-grid" style="margin-bottom: 1.2rem;">
             <div class="kpi-card kpi-card-cyan">
@@ -282,9 +293,9 @@ def render_url_explorer(pages: List[PageResult]):
                     <span class="kpi-label">Target URL</span>
                 </div>
                 <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; color: #22D3EE; word-break: break-all; margin-top: 0.2rem;">
-                    {page.url}
+                    {safe_url}
                 </div>
-                <div class="kpi-subtext">Host: {page.domain}</div>
+                <div class="kpi-subtext">Host: {safe_domain}</div>
             </div>
             <div class="kpi-card kpi-card-violet">
                 <div class="kpi-header">
@@ -292,9 +303,9 @@ def render_url_explorer(pages: List[PageResult]):
                     <span class="kpi-label">Webpage Title</span>
                 </div>
                 <div style="font-size: 1.15rem; font-weight: 700; color: #FFFFFF; line-height: 1.3; margin-top: 0.2rem;">
-                    {page.title}
+                    {safe_title}
                 </div>
-                <div class="kpi-subtext">Type: {page.content_type or 'text/html'}</div>
+                <div class="kpi-subtext">Type: {safe_type}</div>
             </div>
             <div class="kpi-card kpi-card-green">
                 <div class="kpi-header">
@@ -317,7 +328,8 @@ def render_url_explorer(pages: List[PageResult]):
     c4.metric("External Links", page.external_links_count)
 
     if page.parent_url:
-        st.markdown(f"**Discovered From (Parent URL):** `{page.parent_url}`")
+        safe_parent = html.escape(page.parent_url)
+        st.markdown(f"**Discovered From (Parent URL):** `{safe_parent}`")
 
     tab_int, tab_ext = st.tabs([
         f"Internal Links ({page.internal_links_count})",
