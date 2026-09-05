@@ -89,6 +89,12 @@ if "input_max_depth" not in st.session_state:
 if "input_max_pages" not in st.session_state:
     st.session_state["input_max_pages"] = 30
 
+# Safety reset: the crawl is fully synchronous — if this page is rendering, no crawl is actively
+# running in this execution context. Unconditionally reset is_crawling so a previous crashed/killed
+# crawl session never permanently disables the Start button.
+st.session_state["is_crawling"] = False
+
+
 
 def on_preset_change():
     """Synchronize input state immediately when a preset is chosen from dropdown."""
@@ -172,10 +178,8 @@ with col_url:
         label_visibility="collapsed",
     )
 
-is_running = st.session_state.get("is_crawling", False)
-
 with col_btn:
-    btn_start = st.button("⚡ Start Crawl", type="primary", use_container_width=True, disabled=is_running)
+    btn_start = st.button("⚡ Start Crawl", type="primary", use_container_width=True)
 
 with col_clr:
     btn_clear = st.button("🧹 Clear", type="secondary", use_container_width=True, on_click=reset_crawl_state_callback)
