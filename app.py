@@ -194,7 +194,6 @@ with st.expander("⚙️ Traversal Parameters & Politeness Policies", expanded=F
         max_pages = st.number_input(
             "Max Pages Safety Cap",
             min_value=1,
-            max_value=200,
             step=5,
             key="input_max_pages",
         )
