@@ -64,6 +64,26 @@ def apply_custom_styles():
             background: transparent !important;
         }
 
+        /* === HIDE ALL STREAMLIT TOOLBAR CONTROLS (Share, Star, GitHub, Edit) === */
+        [data-testid="stToolbar"],
+        [data-testid="stToolbarActions"],
+        [data-testid="stDecoration"],
+        [data-testid="stStatusWidget"],
+        [data-testid="stActionButton"],
+        button[title="Share"],
+        button[title="Star"],
+        button[aria-label="Share"],
+        button[aria-label="Star"],
+        a[href*="github.com"][target="_blank"],
+        #MainMenu {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+            width: 0 !important;
+            height: 0 !important;
+        }
+
         /* Streamlit Content Container Spacing */
         .block-container {
             padding-top: 0.75rem !important;
