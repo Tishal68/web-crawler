@@ -60,29 +60,35 @@ def apply_custom_styles():
             font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif !important;
         }
 
-        header[data-testid="stHeader"] {
-            background: transparent !important;
+        /* === COMPLETELY HIDE STREAMLIT PLATFORM HEADER (Share, Star, GitHub, Edit, Decoration) === */
+        /* Our custom header lives inside .block-container, so the stHeader shell is not needed at all */
+        header[data-testid="stHeader"],
+        header[data-testid="stHeader"] * {
+            display: none !important;
+            visibility: hidden !important;
+            height: 0 !important;
+            min-height: 0 !important;
+            max-height: 0 !important;
+            overflow: hidden !important;
+            pointer-events: none !important;
         }
-
-        /* === HIDE ALL STREAMLIT TOOLBAR CONTROLS (Share, Star, GitHub, Edit) === */
+        /* Also target individual elements in case stHeader selector is shadowed */
         [data-testid="stToolbar"],
         [data-testid="stToolbarActions"],
         [data-testid="stDecoration"],
         [data-testid="stStatusWidget"],
         [data-testid="stActionButton"],
-        button[title="Share"],
-        button[title="Star"],
-        button[aria-label="Share"],
-        button[aria-label="Star"],
-        a[href*="github.com"][target="_blank"],
-        #MainMenu {
+        #MainMenu,
+        #MainMenu * {
             display: none !important;
             visibility: hidden !important;
-            opacity: 0 !important;
-            pointer-events: none !important;
-            width: 0 !important;
             height: 0 !important;
+            min-height: 0 !important;
+            max-height: 0 !important;
+            overflow: hidden !important;
+            pointer-events: none !important;
         }
+
 
         /* Streamlit Content Container Spacing */
         .block-container {
@@ -484,21 +490,37 @@ def apply_custom_styles():
             transform: translateY(1px) !important;
         }
 
-        /* Secondary Button (Clear Results, Download, etc.) */
-        div.stButton > button[kind="secondary"] {
-            background: rgba(255, 255, 255, 0.04) !important;
-            color: #94A3B8 !important;
-            border: 1px solid rgba(255, 255, 255, 0.10) !important;
+        /* Secondary Button (Clear, Download, Load Session, Preset cards, etc.)
+           Use broad selectors — Streamlit Cloud bleeds primaryColor border through kind="secondary" */
+        div.stButton > button[kind="secondary"],
+        div.stButton > button:not([kind="primary"]),
+        div.stDownloadButton > button {
+            background: rgba(15, 23, 42, 0.70) !important;
+            color: #CBD5E1 !important;
+            border: 1px solid rgba(255, 255, 255, 0.12) !important;
             border-radius: 8px !important;
             font-weight: 600 !important;
             font-size: 0.84rem !important;
             transition: all 0.2s ease !important;
+            box-shadow: none !important;
+            outline: none !important;
         }
-        div.stButton > button[kind="secondary"]:hover {
-            background: rgba(255, 255, 255, 0.08) !important;
+        div.stButton > button[kind="secondary"]:hover,
+        div.stButton > button:not([kind="primary"]):hover,
+        div.stDownloadButton > button:hover {
+            background: rgba(34, 211, 238, 0.08) !important;
             color: #FFFFFF !important;
-            border-color: rgba(255, 255, 255, 0.22) !important;
+            border-color: rgba(34, 211, 238, 0.35) !important;
+            box-shadow: 0 0 12px rgba(34, 211, 238, 0.15) !important;
         }
+        div.stButton > button[kind="secondary"]:focus,
+        div.stButton > button:not([kind="primary"]):focus,
+        div.stDownloadButton > button:focus {
+            outline: none !important;
+            box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.30) !important;
+            border-color: rgba(34, 211, 238, 0.35) !important;
+        }
+
 
         /* === HEIGHT LOCK SCOPED TO COMMAND BAR ONLY === */
         /* Do NOT apply fixed height globally — it squashes download/load buttons */
