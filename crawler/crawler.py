@@ -30,6 +30,7 @@ from .url_utils import (
 )
 from .parser import parse_page_html
 from .robots import RobotsManager
+from .search_discovery import is_search_query, discover_search_urls
 
 # Maximum allowed download size for HTML pages (10 MB)
 MAX_RESPONSE_BYTES = 10 * 1024 * 1024
@@ -85,12 +86,14 @@ class WebCrawler:
         return "text/html" in content_type or "application/xhtml+xml" in content_type
 
     def extract_links(self, url: str, html: str, base_domain: str) -> Dict[str, Any]:
-        """Extract title, metadata, and categorized hyperlinks from HTML."""
+        """Extract title, metadata, readable text, and categorized hyperlinks from HTML."""
+        target_terms = self.config.keyword_filter or self.config.search_query
         return parse_page_html(
             html_content=html,
             base_url=url,
             base_domain=base_domain,
             allow_subdomains=self.config.allow_subdomains,
+            target_terms=target_terms,
         )
 
     def fetch_page(
@@ -246,103 +249,187 @@ class WebCrawler:
         self.failures.clear()
         self.graph_edges.clear()
 
-        # Validate start URL
+        # Check if input is a search query/sentence or direct URL
         raw_start = (self.config.start_url or "").strip()
-        normalized_start = self.normalize_url(raw_start)
+        is_query = is_search_query(raw_start)
 
-        if not normalized_start:
-            failure = CrawlFailure(
-                url=raw_start or "None",
-                depth=0,
-                error_type="Invalid Starting URL",
-                error_message="The provided starting URL is malformed or does not use http/https.",
-            )
-            self.failures.append(failure)
-            self.failed_urls.add(raw_start or "None")
-            summary = CrawlSessionSummary(
-                session_id=session_id,
-                start_url=raw_start,
-                max_depth=self.config.max_depth,
-                max_pages=self.config.max_pages,
-                start_time=start_time_iso,
-                end_time=datetime.now().isoformat(),
-                elapsed_seconds=round(time.perf_counter() - crawl_start_perf, 2),
-                pages_crawled=0,
-                discovered_urls_count=0,
-                failed_urls_count=1,
-                total_internal_links=0,
-                total_external_links=0,
-                stay_on_domain=self.config.stay_on_domain,
-                max_depth_reached=0,
-            )
+        if is_query:
+            # User wants to crawl across the internet for words/sentence/topic
+            self.config.search_query = raw_start
+            self.config.stay_on_domain = False  # Search traversal spans multiple domains across internet
+
             yield CrawlProgressEvent(
-                event_type="failure",
+                event_type="searching",
                 current_url=raw_start,
                 current_depth=0,
                 pages_crawled=0,
                 discovered_count=0,
-                failed_count=1,
-                message=f"Starting URL error: {failure.error_message}",
-                failure=failure,
+                failed_count=0,
+                message=f"🔍 Resolving websites across internet for: '{raw_start}'...",
             )
-            return summary
 
-        # Verify start URL satisfies SSRF security policy
-        is_safe_start, ssrf_reason = is_safe_target_url(normalized_start, resolve_dns=False)
-        if not is_safe_start:
-            failure = CrawlFailure(
-                url=raw_start or "None",
-                depth=0,
-                error_type="SSRF Blocked",
-                error_message=f"Starting URL prohibited by security policy: {ssrf_reason}",
+            discovered_seeds = discover_search_urls(
+                raw_start,
+                max_results=min(self.config.max_pages, 8),
+                timeout=self.config.timeout,
+                session=self.session,
             )
-            self.failures.append(failure)
-            self.failed_urls.add(raw_start or "None")
-            summary = CrawlSessionSummary(
-                session_id=session_id,
-                start_url=raw_start,
-                max_depth=self.config.max_depth,
-                max_pages=self.config.max_pages,
-                start_time=start_time_iso,
-                end_time=datetime.now().isoformat(),
-                elapsed_seconds=round(time.perf_counter() - crawl_start_perf, 2),
-                pages_crawled=0,
-                discovered_urls_count=0,
-                failed_urls_count=1,
-                total_internal_links=0,
-                total_external_links=0,
-                stay_on_domain=self.config.stay_on_domain,
-                max_depth_reached=0,
-            )
+
+            if not discovered_seeds:
+                failure = CrawlFailure(
+                    url=raw_start or "None",
+                    depth=0,
+                    error_type="Search Discovery Failed",
+                    error_message=f"Could not discover reachable websites across internet for query '{raw_start}'. Please check internet connection or refine your words/sentence.",
+                )
+                self.failures.append(failure)
+                self.failed_urls.add(raw_start or "None")
+                summary = CrawlSessionSummary(
+                    session_id=session_id,
+                    start_url=raw_start,
+                    max_depth=self.config.max_depth,
+                    max_pages=self.config.max_pages,
+                    start_time=start_time_iso,
+                    end_time=datetime.now().isoformat(),
+                    elapsed_seconds=round(time.perf_counter() - crawl_start_perf, 2),
+                    pages_crawled=0,
+                    discovered_urls_count=0,
+                    failed_urls_count=1,
+                    total_internal_links=0,
+                    total_external_links=0,
+                    stay_on_domain=False,
+                    max_depth_reached=0,
+                    search_query=raw_start,
+                )
+                yield CrawlProgressEvent(
+                    event_type="failure",
+                    current_url=raw_start,
+                    current_depth=0,
+                    pages_crawled=0,
+                    discovered_count=0,
+                    failed_count=1,
+                    message=f"Search error: {failure.error_message}",
+                    failure=failure,
+                )
+                return summary
+
+            normalized_start = discovered_seeds[0]
+            start_domain = get_domain(normalized_start)
+            queue = collections.deque([(s_url, 0, None) for s_url in discovered_seeds])
+            for s_url in discovered_seeds:
+                self.queued_urls.add(s_url)
+                self.visited_urls.add(s_url)
+                self.discovered_urls.add(s_url)
+
             yield CrawlProgressEvent(
-                event_type="failure",
+                event_type="start",
                 current_url=raw_start,
                 current_depth=0,
                 pages_crawled=0,
-                discovered_count=0,
-                failed_count=1,
-                message=f"Security Policy: {failure.error_message}",
-                failure=failure,
+                discovered_count=len(discovered_seeds),
+                failed_count=0,
+                message=f"Discovered {len(discovered_seeds)} websites across internet. Initiating multi-domain crawl for: '{raw_start}'",
             )
-            return summary
+        else:
+            norm_target = raw_start
+            if norm_target and "://" not in norm_target:
+                norm_target = "https://" + norm_target
 
-        start_domain = get_domain(normalized_start)
+            normalized_start = self.normalize_url(norm_target)
 
-        # Queue contains tuples: (url, depth, parent_url)
-        queue = collections.deque([(normalized_start, 0, None)])
-        self.queued_urls.add(normalized_start)
-        self.visited_urls.add(normalized_start)
-        self.discovered_urls.add(normalized_start)
+            if not normalized_start:
+                failure = CrawlFailure(
+                    url=raw_start or "None",
+                    depth=0,
+                    error_type="Invalid Starting URL",
+                    error_message="The provided starting URL is malformed or does not use http/https.",
+                )
+                self.failures.append(failure)
+                self.failed_urls.add(raw_start or "None")
+                summary = CrawlSessionSummary(
+                    session_id=session_id,
+                    start_url=raw_start,
+                    max_depth=self.config.max_depth,
+                    max_pages=self.config.max_pages,
+                    start_time=start_time_iso,
+                    end_time=datetime.now().isoformat(),
+                    elapsed_seconds=round(time.perf_counter() - crawl_start_perf, 2),
+                    pages_crawled=0,
+                    discovered_urls_count=0,
+                    failed_urls_count=1,
+                    total_internal_links=0,
+                    total_external_links=0,
+                    stay_on_domain=self.config.stay_on_domain,
+                    max_depth_reached=0,
+                )
+                yield CrawlProgressEvent(
+                    event_type="failure",
+                    current_url=raw_start,
+                    current_depth=0,
+                    pages_crawled=0,
+                    discovered_count=0,
+                    failed_count=1,
+                    message=f"Starting URL error: {failure.error_message}",
+                    failure=failure,
+                )
+                return summary
 
-        yield CrawlProgressEvent(
-            event_type="start",
-            current_url=normalized_start,
-            current_depth=0,
-            pages_crawled=0,
-            discovered_count=1,
-            failed_count=0,
-            message=f"Crawl initialized for {normalized_start} (Max Depth: {self.config.max_depth}, Max Pages: {self.config.max_pages})",
-        )
+            # Verify start URL satisfies SSRF security policy
+            is_safe_start, ssrf_reason = is_safe_target_url(normalized_start, resolve_dns=False)
+            if not is_safe_start:
+                failure = CrawlFailure(
+                    url=raw_start or "None",
+                    depth=0,
+                    error_type="SSRF Blocked",
+                    error_message=f"Starting URL prohibited by security policy: {ssrf_reason}",
+                )
+                self.failures.append(failure)
+                self.failed_urls.add(raw_start or "None")
+                summary = CrawlSessionSummary(
+                    session_id=session_id,
+                    start_url=raw_start,
+                    max_depth=self.config.max_depth,
+                    max_pages=self.config.max_pages,
+                    start_time=start_time_iso,
+                    end_time=datetime.now().isoformat(),
+                    elapsed_seconds=round(time.perf_counter() - crawl_start_perf, 2),
+                    pages_crawled=0,
+                    discovered_urls_count=0,
+                    failed_urls_count=1,
+                    total_internal_links=0,
+                    total_external_links=0,
+                    stay_on_domain=self.config.stay_on_domain,
+                    max_depth_reached=0,
+                )
+                yield CrawlProgressEvent(
+                    event_type="failure",
+                    current_url=raw_start,
+                    current_depth=0,
+                    pages_crawled=0,
+                    discovered_count=0,
+                    failed_count=1,
+                    message=f"Security Policy: {failure.error_message}",
+                    failure=failure,
+                )
+                return summary
+
+            start_domain = get_domain(normalized_start)
+
+            # Queue contains tuples: (url, depth, parent_url)
+            queue = collections.deque([(normalized_start, 0, None)])
+            self.queued_urls.add(normalized_start)
+            self.visited_urls.add(normalized_start)
+            self.discovered_urls.add(normalized_start)
+
+            yield CrawlProgressEvent(
+                event_type="start",
+                current_url=normalized_start,
+                current_depth=0,
+                pages_crawled=0,
+                discovered_count=1,
+                failed_count=0,
+                message=f"Crawl initialized for {normalized_start} (Max Depth: {self.config.max_depth}, Max Pages: {self.config.max_pages})",
+            )
 
         max_depth_reached = 0
         total_attempts = 0
@@ -505,6 +592,10 @@ class WebCrawler:
                 content_type=content_type,
                 domain=get_domain(current_url),
                 parent_url=parent_url,
+                text_snippet=parsed_data.get("text_snippet", ""),
+                word_count=parsed_data.get("word_count", 0),
+                matching_sentences=parsed_data.get("matching_sentences", []),
+                match_count=parsed_data.get("match_count", 0),
             )
             self.page_results.append(page_res)
             self.crawled_urls.add(current_url)
@@ -583,6 +674,7 @@ class WebCrawler:
             total_external_links=tot_external,
             stay_on_domain=self.config.stay_on_domain,
             max_depth_reached=max_depth_reached,
+            search_query=self.config.search_query,
         )
 
         yield CrawlProgressEvent(

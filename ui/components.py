@@ -552,6 +552,7 @@ def apply_custom_styles():
         }
         .stream-success { color: #22C55E; font-weight: 700; }
         .stream-fail { color: #F43F5E; font-weight: 700; }
+        .stream-searching { color: #D8B4FE; font-weight: 700; }
         .stream-depth { color: #A78BFA; font-weight: 600; }
 
         /* === STREAMLIT TAB STYLING OVERRIDES === */
@@ -946,6 +947,7 @@ def render_completion_banner(summary: CrawlSessionSummary):
     safe_session_id = html.escape(summary.session_id)
 
     policy_str = "DOMAIN-SCOPED" if summary.stay_on_domain else "CROSS-DOMAIN"
+    seed_tag_text = f"🔍 SEARCH: {safe_seed_display}" if summary.search_query else f"🎯 SEED: {safe_seed_display}"
 
     st.markdown(f"""
         <div class="completion-panel-glass">
@@ -954,7 +956,7 @@ def render_completion_banner(summary: CrawlSessionSummary):
                     <span class="pulse-beacon-green"></span> CRAWL COMPLETED // SESSION TELEMETRY
                 </div>
                 <div style="display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap;">
-                    <span class="seed-url-pill" title="{safe_seed_url}">🎯 SEED: {safe_seed_display}</span>
+                    <span class="seed-url-pill" title="{safe_seed_url}">{seed_tag_text}</span>
                     <span class="session-id-tag">ID: {safe_session_id}</span>
                 </div>
             </div>

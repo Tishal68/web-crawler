@@ -112,11 +112,17 @@ def render_results_section(pages: List[PageResult], summary: CrawlSessionSummary
     filtered_df = df.copy()
     if search_query:
         query_lower = search_query.lower()
+        snippet_mask = (
+            filtered_df["Snippet"].astype(str).str.lower().str.contains(query_lower, regex=False, na=False)
+            if "Snippet" in filtered_df.columns
+            else pd.Series(False, index=filtered_df.index)
+        )
         # Literal string match (regex=False) to prevent errors on special regex characters
         mask = (
             filtered_df["URL"].astype(str).str.lower().str.contains(query_lower, regex=False, na=False) |
             filtered_df["Title"].astype(str).str.lower().str.contains(query_lower, regex=False, na=False) |
-            filtered_df["Domain"].astype(str).str.lower().str.contains(query_lower, regex=False, na=False)
+            filtered_df["Domain"].astype(str).str.lower().str.contains(query_lower, regex=False, na=False) |
+            snippet_mask
         )
         filtered_df = filtered_df[mask]
 
@@ -132,10 +138,19 @@ def render_results_section(pages: List[PageResult], summary: CrawlSessionSummary
         status_200_count = 0
         avg_latency = 0.0
         total_extracted = 0
+        total_words = 0
+        total_matches = 0
     else:
         status_200_count = int((filtered_df["Status"] == 200).sum())
         avg_latency = float(filtered_df["Response Time (s)"].mean()) if "Response Time (s)" in filtered_df else 0.0
         total_extracted = int(filtered_df["Links"].sum()) if "Links" in filtered_df else 0
+        total_words = int(filtered_df["Words"].sum()) if "Words" in filtered_df else 0
+        total_matches = int(filtered_df["Matches"].sum()) if "Matches" in filtered_df else 0
+
+    match_badge = (
+        f'<span style="background: rgba(244, 63, 94, 0.08); border: 1px solid rgba(244, 63, 94, 0.25); padding: 0.25rem 0.65rem; border-radius: 4px; color: #FDA4AF;"><b>Matches:</b> {total_matches:,}</span>'
+        if total_matches > 0 else ""
+    )
 
     st.markdown(f"""
         <div style="display: flex; gap: 0.8rem; margin-bottom: 0.8rem; flex-wrap: wrap; font-size: 0.78rem;">
@@ -148,22 +163,32 @@ def render_results_section(pages: List[PageResult], summary: CrawlSessionSummary
             <span style="background: rgba(139, 92, 246, 0.08); border: 1px solid rgba(139, 92, 246, 0.25); padding: 0.25rem 0.65rem; border-radius: 4px; color: #A78BFA;">
                 <b>Avg Latency:</b> {avg_latency * 1000:.0f} ms
             </span>
+            <span style="background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.25); padding: 0.25rem 0.65rem; border-radius: 4px; color: #D8B4FE;">
+                <b>Words Mined:</b> {total_words:,}
+            </span>
+            {match_badge}
             <span style="background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.10); padding: 0.25rem 0.65rem; border-radius: 4px; color: #94A3B8;">
                 <b>Discovered Links:</b> {total_extracted:,}
             </span>
         </div>
     """, unsafe_allow_html=True)
 
+    desired_cols = [
+        "URL", "Title", "Depth", "Status", "Words", "Matches", "Snippet",
+        "Links", "Internal", "External", "Response Time (s)", "Domain"
+    ]
+    cols_to_render = [c for c in desired_cols if c in filtered_df.columns]
+
     st.dataframe(
-        filtered_df[[
-            "URL", "Title", "Depth", "Status", "Links", "Internal", "External",
-            "Response Time (s)", "Domain"
-        ]],
+        filtered_df[cols_to_render],
         column_config={
             "URL": st.column_config.LinkColumn("Target Webpage", max_chars=60),
             "Title": st.column_config.TextColumn("Webpage Title", width="medium"),
             "Depth": st.column_config.NumberColumn("Depth", format="D%d", width="small"),
             "Status": st.column_config.NumberColumn("Status", format="%d", width="small"),
+            "Words": st.column_config.NumberColumn("Words", format="%d", width="small"),
+            "Matches": st.column_config.NumberColumn("Matches", format="%d", width="small"),
+            "Snippet": st.column_config.TextColumn("Content Snippet", width="large"),
             "Links": st.column_config.NumberColumn("Links", width="small"),
             "Internal": st.column_config.NumberColumn("Internal", width="small"),
             "External": st.column_config.NumberColumn("External", width="small"),
@@ -321,20 +346,55 @@ def render_url_explorer(pages: List[PageResult]):
     """, unsafe_allow_html=True)
 
     # Secondary metrics
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
     c1.metric("Depth Level", f"Depth {page.depth}")
     c2.metric("Total Links", page.total_links)
     c3.metric("Internal Links", page.internal_links_count)
     c4.metric("External Links", page.external_links_count)
+    c5.metric("Word Count", f"{page.word_count:,}")
+    c6.metric("Term Matches", page.match_count)
 
     if page.parent_url:
         safe_parent = html.escape(page.parent_url)
         st.markdown(f"**Discovered From (Parent URL):** `{safe_parent}`")
 
-    tab_int, tab_ext = st.tabs([
+    tab_content, tab_int, tab_ext = st.tabs([
+        f"Text & Sentences ({page.match_count} matches)",
         f"Internal Links ({page.internal_links_count})",
         f"External Links ({page.external_links_count})"
     ])
+
+    with tab_content:
+        st.markdown("""
+            <div style="font-size: 0.74rem; font-weight: 700; letter-spacing: 0.06em; color: #22D3EE; text-transform: uppercase; margin-bottom: 0.4rem;">
+                // PAGE CONTENT SNIPPET &amp; TEXT EXTRACTION
+            </div>
+        """, unsafe_allow_html=True)
+        if page.text_snippet:
+            safe_snippet = html.escape(page.text_snippet)
+            st.markdown(f"""
+                <div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; padding: 0.85rem 1.1rem; color: #E2E8F0; font-size: 0.84rem; line-height: 1.6; margin-bottom: 1rem;">
+                    &ldquo;{safe_snippet}&hellip;&rdquo;
+                </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.info("No readable text content extracted for this resource.")
+
+        if page.matching_sentences:
+            st.markdown(f"""
+                <div style="font-size: 0.74rem; font-weight: 700; letter-spacing: 0.06em; color: #D8B4FE; text-transform: uppercase; margin-bottom: 0.4rem;">
+                    // MINED SENTENCES MATCHING TARGET TERMS ({len(page.matching_sentences)})
+                </div>
+            """, unsafe_allow_html=True)
+            for idx, sent in enumerate(page.matching_sentences, 1):
+                safe_sent = html.escape(sent)
+                st.markdown(f"""
+                    <div style="background: rgba(88, 28, 135, 0.2); border-left: 3px solid #A855F7; border-radius: 4px; padding: 0.5rem 0.8rem; margin-bottom: 0.4rem; color: #F1F5F9; font-size: 0.82rem; line-height: 1.5;">
+                        <span style="color: #D8B4FE; font-weight: 700; font-family: monospace;">[{idx}]</span> {safe_sent}
+                    </div>
+                """, unsafe_allow_html=True)
+        elif page.word_count > 0:
+            st.caption("No specific term match filter triggered for this page. Page text parsed and indexed successfully.")
 
     with tab_int:
         if page.internal_urls:

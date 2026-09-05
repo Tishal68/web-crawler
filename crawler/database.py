@@ -106,6 +106,19 @@ class CrawlDatabase:
                     # Create performance indices for fast lookups
                     cursor.execute("CREATE INDEX IF NOT EXISTS idx_pages_session ON crawled_pages(session_id);")
                     cursor.execute("CREATE INDEX IF NOT EXISTS idx_failures_session ON failed_urls(session_id);")
+
+                    # Non-destructive migrations for search query & text mining columns
+                    for col_sql in [
+                        "ALTER TABLE sessions ADD COLUMN search_query TEXT;",
+                        "ALTER TABLE crawled_pages ADD COLUMN text_snippet TEXT;",
+                        "ALTER TABLE crawled_pages ADD COLUMN word_count INTEGER DEFAULT 0;",
+                        "ALTER TABLE crawled_pages ADD COLUMN match_count INTEGER DEFAULT 0;",
+                        "ALTER TABLE crawled_pages ADD COLUMN matching_sentences_json TEXT;",
+                    ]:
+                        try:
+                            cursor.execute(col_sql)
+                        except sqlite3.OperationalError:
+                            pass
         except Exception as e:
             logger.error("Failed to initialize SQLite database at %s: %s", self.db_path, e)
             raise
@@ -135,8 +148,8 @@ class CrawlDatabase:
                             session_id, start_url, max_depth, max_pages, start_time,
                             end_time, elapsed_seconds, pages_crawled, discovered_urls_count,
                             failed_urls_count, total_internal_links, total_external_links,
-                            stay_on_domain, max_depth_reached
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            stay_on_domain, max_depth_reached, search_query
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         summary.session_id,
                         summary.start_url,
@@ -152,6 +165,7 @@ class CrawlDatabase:
                         summary.total_external_links,
                         1 if summary.stay_on_domain else 0,
                         summary.max_depth_reached,
+                        getattr(summary, "search_query", None),
                     ))
 
                     page_rows = [
@@ -172,6 +186,10 @@ class CrawlDatabase:
                             p.parent_url,
                             json.dumps(p.internal_urls),
                             json.dumps(p.external_urls),
+                            getattr(p, "text_snippet", ""),
+                            getattr(p, "word_count", 0),
+                            getattr(p, "match_count", 0),
+                            json.dumps(getattr(p, "matching_sentences", [])),
                         )
                         for p in pages
                     ]
@@ -181,8 +199,9 @@ class CrawlDatabase:
                                 session_id, url, title, depth, status_code, total_links,
                                 unique_links, internal_links_count, external_links_count,
                                 response_time, content_type, domain, timestamp, parent_url,
-                                internal_urls_json, external_urls_json
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                internal_urls_json, external_urls_json,
+                                text_snippet, word_count, match_count, matching_sentences_json
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """, page_rows)
 
                     failure_rows = [
@@ -235,7 +254,8 @@ class CrawlDatabase:
                     SELECT url, title, depth, status_code, total_links, unique_links,
                            internal_links_count, external_links_count, response_time,
                            content_type, domain, timestamp, parent_url,
-                           internal_urls_json, external_urls_json
+                           internal_urls_json, external_urls_json,
+                           text_snippet, word_count, match_count, matching_sentences_json
                     FROM crawled_pages
                     WHERE session_id = ?
                     ORDER BY depth ASC, id ASC
@@ -245,6 +265,7 @@ class CrawlDatabase:
                     item = dict(row)
                     item["internal_urls"] = json.loads(item.get("internal_urls_json") or "[]")
                     item["external_urls"] = json.loads(item.get("external_urls_json") or "[]")
+                    item["matching_sentences"] = json.loads(item.get("matching_sentences_json") or "[]")
                     rows.append(item)
                 return rows
         except Exception as e:

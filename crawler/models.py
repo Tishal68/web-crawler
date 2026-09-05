@@ -22,6 +22,8 @@ class CrawlConfig:
     user_agent: str = (
         "WebCrawlerAnalytics/1.0 (+http://localhost; Academic Assignment Bot)"
     )
+    search_query: Optional[str] = None
+    keyword_filter: Optional[str] = None
 
 
 @dataclass
@@ -42,22 +44,30 @@ class PageResult:
     domain: str = ""
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
     parent_url: Optional[str] = None
+    text_snippet: str = ""
+    word_count: int = 0
+    matching_sentences: List[str] = field(default_factory=list)
+    match_count: int = 0
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert page result to a dictionary suitable for tabular display."""
-        return {
+        d = {
             "URL": self.url,
             "Title": self.title,
             "Depth": self.depth,
             "Status": self.status_code,
+            "Words": self.word_count,
+            "Matches": self.match_count,
             "Links": self.total_links,
             "Internal": self.internal_links_count,
             "External": self.external_links_count,
             "Response Time (s)": round(self.response_time, 3),
             "Domain": self.domain,
+            "Snippet": self.text_snippet,
             "Content Type": self.content_type,
             "Timestamp": self.timestamp,
         }
+        return d
 
 
 @dataclass
@@ -83,7 +93,7 @@ class CrawlFailure:
 @dataclass
 class CrawlProgressEvent:
     """Event emitted during the live crawl process."""
-    event_type: str  # 'start', 'fetching', 'success', 'failure', 'skipped', 'completed'
+    event_type: str  # 'start', 'searching', 'fetching', 'success', 'failure', 'skipped', 'completed'
     current_url: str
     current_depth: int
     pages_crawled: int
@@ -111,10 +121,11 @@ class CrawlSessionSummary:
     total_external_links: int
     stay_on_domain: bool
     max_depth_reached: int = 0
+    search_query: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert summary metrics to dictionary."""
-        return {
+        d = {
             "Session ID": self.session_id,
             "Start URL": self.start_url,
             "Max Depth Config": self.max_depth,
@@ -129,3 +140,6 @@ class CrawlSessionSummary:
             "Start Time": self.start_time,
             "End Time": self.end_time,
         }
+        if self.search_query:
+            d["Search Query"] = self.search_query
+        return d
