@@ -48,6 +48,7 @@ def create_depth_bar_chart(pages: List[PageResult]) -> go.Figure:
         marker=dict(line=dict(width=1, color="rgba(255,255,255,0.15)")),
     )
     fig.update_layout(
+        autosize=True,
         title=dict(font=dict(color="#FFFFFF", size=14, family=FONT_FAMILY)),
         xaxis=dict(
             title=dict(text="Crawling Depth", font=dict(color="#94A3B8", size=11)),
@@ -86,6 +87,7 @@ def create_status_donut_chart(pages_count: int, failures_count: int) -> go.Figur
         insidetextorientation="radial",
     )])
     fig.update_layout(
+        autosize=True,
         title=dict(text="Crawl Success vs Failure Ratio", font=dict(color="#FFFFFF", size=14, family=FONT_FAMILY)),
         margin=dict(l=20, r=20, t=45, b=20),
         height=320,
@@ -111,6 +113,7 @@ def create_links_distribution_chart(total_internal: int, total_external: int) ->
         textfont=dict(color="#f8fafc", family=FONT_FAMILY, size=10),
     )])
     fig.update_layout(
+        autosize=True,
         title=dict(text="Internal vs External Hyperlinks", font=dict(color="#FFFFFF", size=14, family=FONT_FAMILY)),
         margin=dict(l=20, r=20, t=45, b=20),
         height=320,
@@ -165,6 +168,7 @@ def create_top_domains_chart(pages: List[PageResult], top_n: int = 10) -> go.Fig
         marker=dict(line=dict(width=1, color="rgba(255,255,255,0.1)")),
     )
     fig.update_layout(
+        autosize=True,
         title=dict(font=dict(color="#FFFFFF", size=14, family=FONT_FAMILY)),
         xaxis=dict(
             title=dict(text="Referenced Count", font=dict(color="#94A3B8", size=11)),
@@ -230,6 +234,7 @@ def create_response_time_chart(pages: List[PageResult]) -> go.Figure:
     )
 
     fig.update_layout(
+        autosize=True,
         title=dict(font=dict(color="#FFFFFF", size=14, family=FONT_FAMILY)),
         xaxis=dict(
             title=dict(text="Crawl Sequence (#)", font=dict(color="#94A3B8", size=11)),
@@ -401,6 +406,7 @@ def create_crawl_network_graph(
     fig = go.Figure(
         data=[edge_trace, node_trace],
         layout=go.Layout(
+            autosize=True,
             title=dict(
                 text="Interactive Crawl Traversal Topology (BFS Graph)",
                 font=dict(color="#FFFFFF", size=15, family=FONT_FAMILY),

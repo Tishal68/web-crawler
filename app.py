@@ -370,12 +370,12 @@ with tab_mission:
     else:
         # Futuristic Standby Guidance Panel
         st.markdown("""
-            <div style="background: linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.01) 100%), rgba(15, 23, 42, 0.65); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.10); border-top: 3px solid #22D3EE; border-radius: 12px; padding: 1.2rem 1.6rem; box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 25px rgba(34, 211, 238, 0.12); margin-top: 0.5rem; margin-bottom: 1.2rem;">
+            <div class="standby-panel-glass">
                 <div style="font-size: 0.72rem; font-weight: 700; color: #22D3EE; letter-spacing: 0.09em; text-transform: uppercase; margin-bottom: 0.3rem; display: flex; align-items: center; gap: 0.45rem;">
                     <span class="pulse-beacon-cyan"></span> SYSTEM READY // STANDBY MODE
                 </div>
                 <h3 style="color: #FFFFFF; font-size: 1.35rem; font-weight: 800; margin-top: 0; margin-bottom: 0.4rem; letter-spacing: -0.01em;">
-                    Autonomous Web Crawler & Topology Engine
+                    Autonomous Web Crawler &amp; Topology Engine
                 </h3>
                 <p style="color: #94A3B8; font-size: 0.88rem; line-height: 1.55; margin-bottom: 0;">
                     Configure seed URL and traversal limits in the command deck above, or click a rapid preset below.
@@ -396,7 +396,7 @@ with tab_mission:
                 safe_preset_url = html.escape(p_spec['url'])
                 safe_preset_desc = html.escape(p_spec['desc'])
                 st.markdown(f"""
-                    <div class="kpi-card" style="padding: 0.85rem 1rem; min-height: 130px; display: flex; flex-direction: column; justify-content: space-between; margin-bottom: 0.4rem;">
+                    <div class="kpi-card preset-card" style="padding: 0.85rem 1rem; min-height: 130px; display: flex; flex-direction: column; justify-content: space-between; margin-bottom: 0.4rem;">
                         <div>
                             <div style="font-size: 0.82rem; font-weight: 800; color: #FFFFFF; margin-bottom: 0.2rem;">
                                 {safe_preset_title}

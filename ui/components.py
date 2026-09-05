@@ -58,6 +58,13 @@ def apply_custom_styles():
             background-attachment: fixed !important;
             color: #F8FAFC !important;
             font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif !important;
+            overflow-x: hidden !important;
+            max-width: 100vw !important;
+            box-sizing: border-box !important;
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box !important;
         }
 
         /* === COMPLETELY HIDE STREAMLIT PLATFORM HEADER (Share, Star, GitHub, Edit, Decoration) === */
@@ -90,13 +97,28 @@ def apply_custom_styles():
         }
 
 
-        /* Streamlit Content Container Spacing */
+        /* === RESPONSIVE STREAMLIT CONTENT CONTAINER === */
         .block-container {
             padding-top: 0.75rem !important;
             padding-bottom: 2rem !important;
             padding-left: 1.5rem !important;
             padding-right: 1.5rem !important;
-            max-width: 1480px !important;
+            max-width: 1520px !important;
+        }
+        @media (max-width: 1024px) {
+            .block-container {
+                padding-left: 1rem !important;
+                padding-right: 1rem !important;
+                padding-top: 0.6rem !important;
+            }
+        }
+        @media (max-width: 640px) {
+            .block-container {
+                padding-left: 0.55rem !important;
+                padding-right: 0.55rem !important;
+                padding-top: 0.4rem !important;
+                padding-bottom: 1.5rem !important;
+            }
         }
 
         /* === COMPACT CYBER HEADER BAR === */
@@ -113,6 +135,40 @@ def apply_custom_styles():
             padding: 0.55rem 1.2rem;
             margin-bottom: 0.85rem;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 0 20px rgba(34, 211, 238, 0.10);
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        @media (max-width: 768px) {
+            .cyber-header-bar {
+                flex-direction: column !important;
+                align-items: flex-start !important;
+                gap: 0.45rem !important;
+                padding: 0.65rem 0.9rem !important;
+            }
+            .cyber-header-left {
+                width: 100% !important;
+                justify-content: space-between !important;
+            }
+            .cyber-header-right {
+                width: 100% !important;
+                justify-content: flex-start !important;
+            }
+            .cyber-status-pill-compact {
+                width: 100% !important;
+                justify-content: center !important;
+                padding: 0.35rem 0.6rem !important;
+            }
+            .cyber-title-compact {
+                font-size: 1.05rem !important;
+            }
+        }
+        @media (max-width: 420px) {
+            .cyber-version-tag {
+                display: none !important;
+            }
+            .cyber-title-compact {
+                font-size: 0.95rem !important;
+            }
         }
         .cyber-header-left {
             display: flex;
@@ -203,7 +259,7 @@ def apply_custom_styles():
             border-top: 3px solid #22C55E !important;
             border-radius: 12px !important;
             padding: 1.4rem 1.8rem !important;
-            margin-bottom: 2rem !important;
+            margin-bottom: 1.5rem !important;
             box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.6), 0 0 35px rgba(34, 197, 94, 0.15), inset 0 1px 1px 0 rgba(255, 255, 255, 0.15) !important;
             position: relative;
             overflow: hidden;
@@ -224,6 +280,8 @@ def apply_custom_styles():
             border-bottom: 1px solid rgba(255, 255, 255, 0.08);
             padding-bottom: 0.85rem;
             margin-bottom: 1.1rem;
+            flex-wrap: wrap;
+            gap: 0.5rem;
         }
         .completion-badge {
             display: inline-flex;
@@ -252,16 +310,17 @@ def apply_custom_styles():
             border: 1px solid rgba(34, 211, 238, 0.25);
             padding: 0.25rem 0.65rem;
             border-radius: 4px;
-            max-width: 420px;
+            max-width: 100% !important;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
             display: inline-block;
+            word-break: break-all;
         }
         .completion-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: 1.4rem;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 1.2rem;
         }
         .completion-stat {
             display: flex;
@@ -282,13 +341,78 @@ def apply_custom_styles():
             text-transform: uppercase;
             margin-top: 0.35rem;
         }
+        @media (max-width: 768px) {
+            .completion-panel-glass {
+                padding: 1rem 1.1rem !important;
+            }
+            .completion-top {
+                flex-direction: column !important;
+                align-items: flex-start !important;
+                gap: 0.5rem !important;
+            }
+            .completion-badge {
+                font-size: 0.76rem !important;
+            }
+            .completion-grid {
+                grid-template-columns: repeat(2, 1fr) !important;
+                gap: 0.75rem !important;
+            }
+            .comp-num {
+                font-size: 1.35rem !important;
+            }
+            .comp-lbl {
+                font-size: 0.62rem !important;
+            }
+        }
+        @media (max-width: 360px) {
+            .completion-grid {
+                grid-template-columns: 1fr !important;
+            }
+        }
 
         /* === REAL GLASSMORPHISM KPI CARDS === */
         .kpi-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 1.1rem;
-            margin-bottom: 2rem;
+            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.8rem;
+        }
+        @media (max-width: 1100px) {
+            .kpi-grid {
+                grid-template-columns: repeat(3, 1fr) !important;
+                gap: 0.8rem !important;
+            }
+        }
+        @media (max-width: 640px) {
+            .kpi-grid {
+                grid-template-columns: repeat(2, 1fr) !important;
+                gap: 0.55rem !important;
+                margin-bottom: 1.2rem !important;
+            }
+            .kpi-card {
+                padding: 0.8rem 0.7rem !important;
+                border-radius: 8px !important;
+            }
+            .kpi-value {
+                font-size: 1.55rem !important;
+                margin-bottom: 0.2rem !important;
+            }
+            .kpi-label {
+                font-size: 0.64rem !important;
+                letter-spacing: 0.06em !important;
+            }
+            .kpi-subtext {
+                font-size: 0.64rem !important;
+            }
+            .kpi-header {
+                margin-bottom: 0.4rem !important;
+                gap: 0.35rem !important;
+            }
+        }
+        @media (max-width: 360px) {
+            .kpi-grid {
+                grid-template-columns: 1fr !important;
+            }
         }
         .kpi-card {
             background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%), rgba(15, 23, 42, 0.65) !important;
@@ -643,7 +767,6 @@ def apply_custom_styles():
             font-weight: 700 !important;
             color: #94A3B8 !important;
             letter-spacing: 0.06em !important;
-            /* Removed text-transform: uppercase — causes glyph issues with emoji on Windows Chromium */
         }
         div[data-testid="stExpander"] summary:hover {
             color: #22D3EE !important;
@@ -653,11 +776,74 @@ def apply_custom_styles():
             border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
         }
 
+        /* === RESPONSIVE STREAMLIT COLUMNS & HORIZONTAL BLOCKS === */
+        [data-testid="stHorizontalBlock"] {
+            flex-wrap: wrap !important;
+            gap: 0.5rem !important;
+        }
+        @media (max-width: 860px) {
+            /* On tablet and mobile, prevent horizontal squishing of columns */
+            [data-testid="stHorizontalBlock"] > [data-testid="column"] {
+                min-width: 100% !important;
+                flex: 1 1 100% !important;
+            }
+        }
+        @media (min-width: 641px) and (max-width: 1024px) {
+            /* On tablet for 4-column blocks (presets, parameters, pillars), adapt to 2x2 grid */
+            [data-testid="stHorizontalBlock"]:has(> [data-testid="column"]:nth-child(4)) > [data-testid="column"] {
+                min-width: 46% !important;
+                flex: 1 1 46% !important;
+            }
+        }
+
+        /* === RESPONSIVE STANDBY PANEL & PRESET CARDS === */
+        .standby-panel-glass {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.01) 100%), rgba(15, 23, 42, 0.65) !important;
+            backdrop-filter: blur(20px) !important;
+            -webkit-backdrop-filter: blur(20px) !important;
+            border: 1px solid rgba(255, 255, 255, 0.10) !important;
+            border-top: 3px solid #22D3EE !important;
+            border-radius: 12px !important;
+            padding: 1.2rem 1.6rem !important;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 25px rgba(34, 211, 238, 0.12) !important;
+            margin-top: 0.5rem !important;
+            margin-bottom: 1.2rem !important;
+        }
+        @media (max-width: 640px) {
+            .standby-panel-glass {
+                padding: 0.85rem 1rem !important;
+            }
+            .standby-panel-glass h3 {
+                font-size: 1.15rem !important;
+            }
+            .standby-panel-glass p {
+                font-size: 0.80rem !important;
+                line-height: 1.45 !important;
+            }
+            .preset-card {
+                min-height: auto !important;
+                padding: 0.75rem 0.85rem !important;
+            }
+        }
+
+        /* === RESPONSIVE DATAFRAMES & CODE OVERFLOW === */
         div[data-testid="stDataFrame"] {
             border: 1px solid rgba(255, 255, 255, 0.08) !important;
             border-radius: 12px !important;
-            overflow: hidden;
+            overflow-x: auto !important;
+            max-width: 100% !important;
+            -webkit-overflow-scrolling: touch !important;
             box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35) !important;
+        }
+        @media (max-width: 640px) {
+            div[data-testid="stDataFrame"] {
+                border-radius: 8px !important;
+            }
+        }
+        code, pre {
+            word-break: break-all !important;
+            white-space: pre-wrap !important;
+            overflow-wrap: anywhere !important;
         }
 
         /* === PROGRESS BAR THEME === */
@@ -679,6 +865,20 @@ def apply_custom_styles():
             align-items: center;
             flex-wrap: wrap;
             gap: 0.5rem;
+        }
+
+        /* === TOUCH TARGET ACCESSIBILITY (PHONES & TABLETS) === */
+        @media (pointer: coarse) {
+            div.stButton > button,
+            .stDownloadButton > button {
+                min-height: 44px !important;
+            }
+            div[data-baseweb="select"] > div {
+                min-height: 44px !important;
+            }
+            .stCheckbox label {
+                padding: 0.35rem 0 !important;
+            }
         }
 
         /* === REDUCED MOTION PREFERENCE === */
