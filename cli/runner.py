@@ -302,26 +302,26 @@ def main(argv: Optional[List[str]] = None) -> int:
             # In quiet / minimal mode: print clean minimal lines without ASCII boxes
             if args.quiet and not args.json:
                 if event.event_type == "searching":
-                    print(colors.magenta(f"🔍 [SEARCH] Resolving seed targets across internet for: '{event.current_url}'..."))
+                    print(colors.magenta(f"🔍 [SEARCH] Resolving seed targets across internet for: '{event.current_url}'..."), flush=True)
                 elif event.event_type == "success" and event.page_result:
                     p = event.page_result
                     w_info = f", words: {p.word_count}" if p.word_count else ""
                     m_info = f", matches: {p.match_count}" if p.match_count > 0 else ""
-                    print(f"[{p.status_code}] D{p.depth} {p.url} (links: {p.unique_links}{w_info}{m_info})")
+                    print(f"[{p.status_code}] D{p.depth} {p.url} (links: {p.unique_links}{w_info}{m_info})", flush=True)
                 elif event.event_type in ("failure", "skipped") and event.failure:
                     f = event.failure
                     lbl = colors.red("[FAIL]") if event.event_type == "failure" else colors.yellow("[SKIP]")
-                    print(f"{lbl} D{f.depth} {f.url} ({f.error_type}: {f.error_message})")
+                    print(f"{lbl} D{f.depth} {f.url} ({f.error_type}: {f.error_message})", flush=True)
             elif not args.json:
                 event_text = format_page_event(event, colors)
                 if event_text:
-                    print(event_text)
+                    print(event_text, flush=True)
 
                 # Print progress bar line on fetching / success / skipped
                 if event.event_type in ("fetching", "success", "failure", "skipped"):
                     p_bar = format_progress_bar(event.pages_crawled, config.max_pages, width=20)
                     stats_str = f"Depth: {event.current_depth}/{config.max_depth} | Discovered: {event.discovered_count} | OK: {event.pages_crawled} | Fail: {event.failed_count}"
-                    print(colors.dim(f"  {p_bar} | {stats_str}"))
+                    print(colors.dim(f"  {p_bar} | {stats_str}"), flush=True)
 
     except StopIteration as e:
         summary = e.value

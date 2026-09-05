@@ -145,13 +145,11 @@ class WebCrawler:
                     if redirect_hops > max_redirect_hops:
                         elapsed = time.perf_counter() - start_time
                         return None, elapsed, "Redirect Loop", f"Exceeded maximum redirects limit of {max_redirect_hops}"
-
                     next_url = urljoin(current_fetch_url, location)
-                    norm_next = normalize_url(next_url)
-                    if not norm_next or not is_valid_url(norm_next):
+                    if not is_valid_url(next_url):
                         elapsed = time.perf_counter() - start_time
                         return None, elapsed, "Invalid Redirect", f"Redirect target is malformed or invalid: {location}"
-                    current_fetch_url = norm_next
+                    current_fetch_url = next_url
                     continue
                 else:
                     break
@@ -569,11 +567,16 @@ class WebCrawler:
             final_url = resp.url if resp.url else current_url
             content_type = resp.headers.get("Content-Type", "")
 
+            # If stay_on_domain is False (cross-domain internet search/surfing),
+            # classify internal vs external relative to the page's own domain
+            page_domain = get_domain(final_url)
+            extract_domain = start_domain if self.config.stay_on_domain else page_domain
+
             # Parse HTML content
             parsed_data = self.extract_links(
                 url=final_url,
                 html=resp.text,
-                base_domain=start_domain,
+                base_domain=extract_domain,
             )
 
             # Record successfully crawled page
@@ -626,7 +629,18 @@ class WebCrawler:
                 if self.config.stay_on_domain:
                     candidates = parsed_data["internal_urls"]
                 else:
-                    candidates = parsed_data["internal_urls"] + parsed_data["external_urls"]
+                    # Unrestricted Internet Surfing: interleave external outbound links with internal links
+                    # so the crawler actively hops between diverse internet websites instead of getting
+                    # trapped in thousands of internal links of a single website!
+                    ext_links = parsed_data["external_urls"]
+                    int_links = parsed_data["internal_urls"]
+                    candidates = []
+                    max_len = max(len(ext_links), len(int_links))
+                    for idx in range(max_len):
+                        if idx < len(ext_links):
+                            candidates.append(ext_links[idx])
+                        if idx < len(int_links):
+                            candidates.append(int_links[idx])
 
                 for link in candidates:
                     # Prevent duplicate queueing

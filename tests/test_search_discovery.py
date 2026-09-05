@@ -47,11 +47,81 @@ class TestSearchQueryDetection:
         assert not is_search_query(None)
 
 
+from crawler.search_discovery import is_search_query, discover_search_urls, decode_bing_u
+
+
+class TestBingDecode:
+    def test_decode_bing_u(self):
+        # 'https://www.ibm.com/think/topics/quantum-computing'
+        u_param = "a1aHR0cHM6Ly93d3cuaWJtLmNvbS90aGluay90b3BpY3MvcXVhbnR1bS1jb21wdXRpbmc"
+        assert decode_bing_u(u_param) == "https://www.ibm.com/think/topics/quantum-computing"
+
+    def test_decode_bing_u_invalid(self):
+        assert decode_bing_u("") is None
+        assert decode_bing_u(None) is None
+        assert decode_bing_u("invalid_not_base64") is None
+
+
 class TestSearchDiscovery:
-    """Test search discovery URL resolution and SSRF defense."""
+    """Test search discovery URL resolution, multi-source engines, and SSRF defense."""
+
+    @patch("requests.get")
+    def test_bing_search_discovery(self, mock_get):
+        bing_resp = MagicMock()
+        bing_resp.status_code = 200
+        bing_resp.text = """
+        <html>
+            <body>
+                <li class="b_algo">
+                    <h2><a href="https://www.bing.com/ck/a?!&&u=a1aHR0cHM6Ly93d3cuaWJtLmNvbS9xdWFudHVt">IBM Quantum</a></h2>
+                </li>
+                <li class="b_algo">
+                    <h2><a href="https://www.bing.com/ck/a?!&&u=a1aHR0cHM6Ly93d3cubmFzYS5nb3Yvc3BhY2U">NASA Space</a></h2>
+                </li>
+                <li class="b_algo">
+                    <h2><a href="https://www.bing.com/ck/a?!&&u=a1aHR0cDovLzEyNy4wLjAuMS9hZG1pbg">SSRF Loopback</a></h2>
+                </li>
+            </body>
+        </html>
+        """
+        mock_get.return_value = bing_resp
+
+        results = discover_search_urls("quantum computing", max_results=5)
+        assert len(results) == 2
+        assert "https://www.ibm.com/quantum" in results
+        assert "https://www.nasa.gov/space" in results
+        # SSRF blocked
+        assert not any("127.0.0.1" in r for r in results)
+
+    @patch("requests.get")
+    def test_algolia_open_index_discovery(self, mock_get):
+        # Bing returns empty, Algolia returns tech articles
+        bing_resp = MagicMock()
+        bing_resp.status_code = 403
+
+        hn_resp = MagicMock()
+        hn_resp.status_code = 200
+        hn_resp.json.return_value = {
+            "hits": [
+                {"title": "Words Filippo", "url": "https://words.filippo.io/crqc-timeline/"},
+                {"title": "Quantum Country", "url": "https://quantum.country/intro"},
+                {"title": "Internal", "url": "http://169.254.169.254/latest"},
+            ]
+        }
+        mock_get.side_effect = [bing_resp, hn_resp]
+
+        results = discover_search_urls("quantum cryptography", max_results=5)
+        assert any("words.filippo.io" in r for r in results)
+        assert "https://quantum.country/intro" in results
+        # Link-local metadata blocked
+        assert not any("169.254.169.254" in r for r in results)
 
     @patch("requests.post")
-    def test_duckduckgo_search_discovery(self, mock_post):
+    @patch("requests.get")
+    def test_duckduckgo_search_discovery(self, mock_get, mock_post):
+        # GET (Bing, Algolia, Brave) fails
+        mock_get.side_effect = requests.RequestException("GET failed")
+
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.text = """
@@ -76,8 +146,8 @@ class TestSearchDiscovery:
 
     @patch("requests.post")
     @patch("requests.get")
-    def test_fallback_to_wikipedia_when_duckduckgo_fails(self, mock_get, mock_post):
-        # DuckDuckGo fails with 403 or network error
+    def test_fallback_to_wikipedia_when_others_fail(self, mock_get, mock_post):
+        # DuckDuckGo and other engines fail
         mock_post.side_effect = requests.RequestException("Network Error")
 
         # Wikipedia OpenSearch responds
@@ -89,9 +159,16 @@ class TestSearchDiscovery:
             ["A web crawler is a bot...", "Web scraping is..."],
             ["https://en.wikipedia.org/wiki/Web_crawler", "https://en.wikipedia.org/wiki/Web_scraping"]
         ]
-        mock_get.return_value = mock_wiki
+        # Bing, Algolia, Brave, and Wiki Query all fail; Wiki OpenSearch succeeds
+        mock_get.side_effect = [
+            requests.RequestException("Bing fail"),
+            requests.RequestException("Algolia fail"),
+            requests.RequestException("Brave fail"),
+            requests.RequestException("Wiki Query fail"),
+            mock_wiki,
+        ]
 
-        results = discover_search_urls("web crawler", max_results=5)
+        results = discover_search_urls("web crawler", max_results=5, max_per_domain=2)
         assert len(results) == 2
         assert "https://en.wikipedia.org/wiki/Web_crawler" in results
         assert "https://en.wikipedia.org/wiki/Web_scraping" in results
@@ -100,7 +177,8 @@ class TestSearchDiscovery:
     @patch("requests.get")
     def test_discovery_graceful_on_total_failure(self, mock_get, mock_post):
         mock_post.side_effect = requests.RequestException("DDG down")
-        mock_get.side_effect = requests.RequestException("Wiki down")
+        mock_get.side_effect = requests.RequestException("GET down")
 
         results = discover_search_urls("some rare term", max_results=5)
         assert results == []
+

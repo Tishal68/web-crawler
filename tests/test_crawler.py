@@ -411,3 +411,44 @@ class TestSQLiteDatabaseStorage:
         del_res = db.delete_session("test_sess_001")
         assert del_res
         assert len(db.get_all_sessions()) == 0
+
+    @patch.object(WebCrawler, "fetch_page")
+    def test_cross_domain_surfing_interleaves_external_links(self, mock_fetch):
+        # Starting page has multiple internal links and an external link
+        seed_html = """
+        <html><head><title>Home</title></head><body>
+            <a href="/internal1">Internal 1</a>
+            <a href="/internal2">Internal 2</a>
+            <a href="/internal3">Internal 3</a>
+            <a href="https://external-domain.org/article">External Article</a>
+        </body></html>
+        """
+        ext_html = "<html><head><title>Ext</title></head><body><p>Hello world</p></body></html>"
+        int1_html = "<html><head><title>Int</title></head><body><p>Internal</p></body></html>"
+
+        def side_effect(url, timeout):
+            if url == "https://example.com":
+                return mock_html_response(url, seed_html, 200), 0.01, None, None
+            elif url == "https://external-domain.org/article":
+                return mock_html_response(url, ext_html, 200), 0.01, None, None
+            elif "internal" in url:
+                return mock_html_response(url, int1_html, 200), 0.01, None, None
+            return None, 0.01, "Error", "Error"
+
+        mock_fetch.side_effect = side_effect
+
+        config = CrawlConfig(
+            start_url="https://example.com",
+            max_depth=1,
+            max_pages=3,
+            stay_on_domain=False,
+            request_delay=0.0,
+            respect_robots=False,
+        )
+        crawler = WebCrawler(config=config)
+        results = crawler.crawl()
+
+        # Because external links are interleaved, the external link is crawled within the first 3 pages
+        crawled_urls = [p.url for p in results["page_results"]]
+        assert "https://external-domain.org/article" in crawled_urls
+
