@@ -23,23 +23,24 @@ def apply_custom_styles():
             --glass-bg-hover: rgba(24, 35, 60, 0.80);
             --glass-border: rgba(255, 255, 255, 0.10);
             --glass-border-hover: rgba(34, 211, 238, 0.40);
-            
+
             --text-primary: #F8FAFC;
             --text-secondary: #94A3B8;
             --text-muted: #64748B;
-            
+
             --cyan: #22D3EE;
+            --accent-cyan: #22D3EE;  /* alias so var(--accent-cyan) resolves */
             --violet: #8B5CF6;
             --pink: #EC4899;
             --success: #22C55E;
-            --danger: #F43F5E;
+            --danger: #F43F5E;       /* declared so var(--danger) resolves */
             --warning: #F59E0B;
-            
+
             --glow-cyan: 0 0 25px rgba(34, 211, 238, 0.35);
             --glow-violet: 0 0 25px rgba(139, 92, 246, 0.35);
             --glow-green: 0 0 25px rgba(34, 197, 94, 0.35);
             --glow-red: 0 0 25px rgba(244, 63, 94, 0.35);
-            
+
             --radius: 12px;
             --radius-sm: 8px;
         }
@@ -47,7 +48,7 @@ def apply_custom_styles():
         /* === GLOBAL THEME & VISIBLE ATMOSPHERIC BACKGROUND === */
         html, body, .stApp, [data-testid="stAppViewContainer"], section.main {
             background-color: #070A12 !important;
-            background-image: 
+            background-image:
                 radial-gradient(ellipse 85% 55% at 18% -5%, rgba(34, 211, 238, 0.16) 0%, transparent 60%),
                 radial-gradient(ellipse 75% 55% at 85% 15%, rgba(139, 92, 246, 0.18) 0%, transparent 60%),
                 radial-gradient(ellipse 65% 60% at 50% 90%, rgba(14, 165, 233, 0.12) 0%, transparent 60%),
@@ -82,7 +83,7 @@ def apply_custom_styles():
             -webkit-backdrop-filter: blur(16px);
             border: 1px solid rgba(255, 255, 255, 0.09);
             border-top: 2px solid #22D3EE;
-            border-radius: var(--radius-sm);
+            border-radius: 8px;
             padding: 0.55rem 1.2rem;
             margin-bottom: 0.85rem;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 0 20px rgba(34, 211, 238, 0.10);
@@ -144,6 +145,7 @@ def apply_custom_styles():
             background-color: #22D3EE;
             box-shadow: 0 0 10px #22D3EE;
             animation: pulse-beacon 2s infinite ease-in-out;
+            display: inline-block;
         }
         .pulse-beacon-green {
             width: 8px;
@@ -152,6 +154,7 @@ def apply_custom_styles():
             background-color: #22C55E;
             box-shadow: 0 0 10px #22C55E;
             animation: pulse-beacon 2s infinite ease-in-out;
+            display: inline-block;
         }
         @keyframes pulse-beacon {
             0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 12px currentColor; }
@@ -172,7 +175,7 @@ def apply_custom_styles():
             -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
             border: 1px solid rgba(34, 197, 94, 0.30) !important;
             border-top: 3px solid #22C55E !important;
-            border-radius: var(--radius) !important;
+            border-radius: 12px !important;
             padding: 1.4rem 1.8rem !important;
             margin-bottom: 2rem !important;
             box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.6), 0 0 35px rgba(34, 197, 94, 0.15), inset 0 1px 1px 0 rgba(255, 255, 255, 0.15) !important;
@@ -261,12 +264,12 @@ def apply_custom_styles():
             gap: 1.1rem;
             margin-bottom: 2rem;
         }
-        .kpi-card, div[data-testid="stMetric"] {
+        .kpi-card {
             background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%), rgba(15, 23, 42, 0.65) !important;
             backdrop-filter: blur(16px) saturate(180%) !important;
             -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
             border: 1px solid rgba(255, 255, 255, 0.10) !important;
-            border-radius: var(--radius) !important;
+            border-radius: 12px !important;
             padding: 1.3rem 1.2rem !important;
             position: relative;
             overflow: hidden;
@@ -370,19 +373,6 @@ def apply_custom_styles():
             font-weight: 500;
         }
 
-        /* === STREAMLIT METRIC NATIVE OVERRIDE === */
-        div[data-testid="stMetricValue"] {
-            color: #22D3EE !important;
-            font-weight: 800 !important;
-            text-shadow: 0 0 18px rgba(34, 211, 238, 0.5) !important;
-        }
-        div[data-testid="stMetricLabel"] {
-            color: #94A3B8 !important;
-            font-weight: 700 !important;
-            text-transform: uppercase !important;
-            letter-spacing: 0.08em !important;
-        }
-
         /* === LIVE TERMINAL MONITORING PANEL === */
         .live-stream-box {
             background: rgba(10, 14, 24, 0.88);
@@ -390,7 +380,7 @@ def apply_custom_styles():
             -webkit-backdrop-filter: blur(20px);
             border: 1px solid rgba(34, 211, 238, 0.25);
             border-left: 4px solid #22D3EE;
-            border-radius: var(--radius-sm);
+            border-radius: 8px;
             padding: 1.1rem 1.3rem;
             font-family: 'JetBrains Mono', monospace;
             font-size: 0.84rem;
@@ -420,21 +410,24 @@ def apply_custom_styles():
             backdrop-filter: blur(16px) !important;
             -webkit-backdrop-filter: blur(16px) !important;
             border: 1px solid rgba(255, 255, 255, 0.08) !important;
-            border-radius: var(--radius) !important;
+            border-radius: 12px !important;
             padding: 6px !important;
-            gap: 6px !important;
+            gap: 4px !important;
             margin-bottom: 1.8rem !important;
+            flex-wrap: nowrap !important;
+            overflow-x: auto !important;
         }
         .stTabs [data-baseweb="tab"] {
             color: #94A3B8 !important;
-            border-radius: var(--radius-sm) !important;
-            font-size: 0.86rem !important;
+            border-radius: 8px !important;
+            font-size: 0.82rem !important;
             font-weight: 600 !important;
             letter-spacing: 0.02em !important;
-            padding: 10px 20px !important;
+            padding: 8px 14px !important;
             border: none !important;
             background: transparent !important;
             transition: all 0.2s ease !important;
+            white-space: nowrap !important;
         }
         .stTabs [data-baseweb="tab"]:hover {
             color: #FFFFFF !important;
@@ -452,12 +445,12 @@ def apply_custom_styles():
             background: linear-gradient(135deg, #22D3EE 0%, #8B5CF6 100%) !important;
             color: #070A12 !important;
             font-weight: 800 !important;
-            font-size: 0.96rem !important;
-            letter-spacing: 0.08em !important;
+            font-size: 0.90rem !important;
+            letter-spacing: 0.06em !important;
             text-transform: uppercase !important;
             border: none !important;
-            border-radius: var(--radius-sm) !important;
-            padding: 0.75rem 1.6rem !important;
+            border-radius: 8px !important;
+            padding: 0.65rem 1.2rem !important;
             box-shadow: 0 0 25px rgba(34, 211, 238, 0.5), 0 0 50px rgba(139, 92, 246, 0.3) !important;
             transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
         }
@@ -471,20 +464,35 @@ def apply_custom_styles():
             transform: translateY(1px) !important;
         }
 
-        /* Secondary Button (Clear Results) */
+        /* Secondary Button (Clear Results, Download, etc.) */
         div.stButton > button[kind="secondary"] {
             background: rgba(255, 255, 255, 0.04) !important;
             color: #94A3B8 !important;
             border: 1px solid rgba(255, 255, 255, 0.10) !important;
-            border-radius: var(--radius-sm) !important;
+            border-radius: 8px !important;
             font-weight: 600 !important;
-            font-size: 0.88rem !important;
+            font-size: 0.84rem !important;
             transition: all 0.2s ease !important;
         }
         div.stButton > button[kind="secondary"]:hover {
             background: rgba(255, 255, 255, 0.08) !important;
             color: #FFFFFF !important;
             border-color: rgba(255, 255, 255, 0.22) !important;
+        }
+
+        /* === HEIGHT LOCK SCOPED TO COMMAND BAR ONLY === */
+        /* Do NOT apply fixed height globally — it squashes download/load buttons */
+        .crawl-command-bar div.stButton > button {
+            height: 42px !important;
+            min-height: 42px !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+        .crawl-command-bar div[data-baseweb="input"],
+        .crawl-command-bar div[data-baseweb="base-input"] {
+            height: 42px !important;
+            min-height: 42px !important;
         }
 
         /* === COMPLETELY REMOVE SIDEBAR & COLLAPSE CONTROLS === */
@@ -508,25 +516,23 @@ def apply_custom_styles():
             -webkit-backdrop-filter: blur(20px) saturate(180%);
             border: 1px solid rgba(34, 211, 238, 0.25);
             border-top: 2px solid #22D3EE;
-            border-radius: var(--radius-sm);
+            border-radius: 8px;
             padding: 0.75rem 1.1rem;
             margin-bottom: 0.75rem;
             box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45), 0 0 20px rgba(34, 211, 238, 0.10);
         }
 
-        /* Equal height & vertical centering for controls */
-        div.stButton > button {
-            height: 42px !important;
-            min-height: 42px !important;
-            display: inline-flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-        }
+        /* Input & Select baseline styles (not forcing fixed height globally) */
         div[data-baseweb="input"],
-        div[data-baseweb="base-input"],
+        div[data-baseweb="base-input"] {
+            background-color: rgba(15, 23, 42, 0.85) !important;
+            border: 1px solid rgba(255, 255, 255, 0.14) !important;
+            border-radius: 6px !important;
+            color: #FFFFFF !important;
+            transition: all 0.2s ease !important;
+        }
         div[data-baseweb="select"] > div {
-            height: 42px !important;
-            min-height: 42px !important;
+            min-height: 38px !important;
             background-color: rgba(15, 23, 42, 0.85) !important;
             border: 1px solid rgba(255, 255, 255, 0.14) !important;
             border-radius: 6px !important;
@@ -544,12 +550,12 @@ def apply_custom_styles():
             color: #FFFFFF !important;
             font-family: 'JetBrains Mono', monospace !important;
         }
+        /* Number input step buttons — no max-width to avoid unclickable touch targets */
         button[data-testid="stNumberInputStepDown"],
         button[data-testid="stNumberInputStepUp"] {
-            width: 24px !important;
-            height: 26px !important;
-            min-width: 24px !important;
-            max-width: 24px !important;
+            width: 28px !important;
+            height: 28px !important;
+            min-width: 28px !important;
             padding: 0 !important;
             color: #94A3B8 !important;
             border: none !important;
@@ -585,7 +591,7 @@ def apply_custom_styles():
             backdrop-filter: blur(16px) !important;
             -webkit-backdrop-filter: blur(16px) !important;
             border: 1px solid rgba(255, 255, 255, 0.10) !important;
-            border-radius: var(--radius-sm) !important;
+            border-radius: 8px !important;
             margin-top: 0.3rem !important;
             margin-bottom: 0.8rem !important;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
@@ -595,7 +601,7 @@ def apply_custom_styles():
             font-weight: 700 !important;
             color: #94A3B8 !important;
             letter-spacing: 0.06em !important;
-            text-transform: uppercase !important;
+            /* Removed text-transform: uppercase — causes glyph issues with emoji on Windows Chromium */
         }
         div[data-testid="stExpander"] summary:hover {
             color: #22D3EE !important;
@@ -607,7 +613,7 @@ def apply_custom_styles():
 
         div[data-testid="stDataFrame"] {
             border: 1px solid rgba(255, 255, 255, 0.08) !important;
-            border-radius: var(--radius) !important;
+            border-radius: 12px !important;
             overflow: hidden;
             box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35) !important;
         }
@@ -618,9 +624,27 @@ def apply_custom_styles():
             box-shadow: 0 0 15px rgba(34, 211, 238, 0.5) !important;
         }
 
+        /* === RESULTS-READY NOTIFICATION BAR === */
+        .results-ready-bar {
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.08) 0%, rgba(34, 197, 94, 0.02) 100%), rgba(11, 16, 32, 0.75);
+            border: 1px solid rgba(34, 197, 94, 0.25);
+            border-left: 3px solid #22C55E;
+            border-radius: 8px;
+            padding: 0.65rem 1.1rem;
+            margin-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
         /* === REDUCED MOTION PREFERENCE === */
+        /* Excluded: progress bar and spinner so they still animate during live crawl */
         @media (prefers-reduced-motion: reduce) {
-            *, ::before, ::after {
+            *:not([data-testid="stProgress"] *):not([data-testid="stSpinner"] *),
+            ::before,
+            ::after {
                 animation-duration: 0.01ms !important;
                 animation-iteration-count: 1 !important;
                 transition-duration: 0.01ms !important;
@@ -670,18 +694,17 @@ def render_completion_banner(summary: CrawlSessionSummary):
     velocity = summary.pages_crawled / elapsed
     total_attempts = summary.pages_crawled + summary.failed_urls_count
     success_rate = (summary.pages_crawled / total_attempts * 100) if total_attempts > 0 else 100.0
-    
+
     seed_display = summary.start_url
     if len(seed_display) > 52:
         seed_display = seed_display[:49] + "..."
-        
+
     safe_seed_display = html.escape(seed_display)
     safe_seed_url = html.escape(summary.start_url, quote=True)
     safe_session_id = html.escape(summary.session_id)
 
     policy_str = "DOMAIN-SCOPED" if summary.stay_on_domain else "CROSS-DOMAIN"
-    fail_color = 'val-red' if summary.failed_urls_count > 0 else 'val-green'
-    
+
     st.markdown(f"""
         <div class="completion-panel-glass">
             <div class="completion-top">
@@ -727,7 +750,7 @@ def render_kpi_cards(summary: CrawlSessionSummary, pages: Optional[List[PageResu
     """Render 6 real glassmorphic KPI cards with distinct, non-redundant metrics."""
     fail_color = 'val-red' if summary.failed_urls_count > 0 else 'val-green'
     fail_dot = 'dot-red' if summary.failed_urls_count > 0 else 'dot-green'
-    
+
     # Compute average latency
     if pages and len(pages) > 0:
         latencies = [p.response_time for p in pages if p.response_time is not None]
@@ -736,7 +759,7 @@ def render_kpi_cards(summary: CrawlSessionSummary, pages: Optional[List[PageResu
         avg_latency = 0.0
 
     latency_str = f"{avg_latency * 1000:.0f} ms" if avg_latency < 1.0 else f"{avg_latency:.2f} s"
-    
+
     st.markdown(f"""
         <div class="kpi-grid">
             <div class="kpi-card kpi-card-cyan">
@@ -761,7 +784,7 @@ def render_kpi_cards(summary: CrawlSessionSummary, pages: Optional[List[PageResu
                     <span class="kpi-label">Failed Requests</span>
                 </div>
                 <div class="kpi-value {fail_color}">{summary.failed_urls_count}</div>
-                <div class="kpi-subtext">Network & Policy Blocks</div>
+                <div class="kpi-subtext">Network &amp; Policy Blocks</div>
             </div>
             <div class="kpi-card kpi-card-green">
                 <div class="kpi-header">

@@ -43,7 +43,7 @@ def render_live_progress_container():
     for live streaming of crawl metrics in a futuristic cyber-console format.
     """
     st.markdown("""
-        <div style="font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; color: var(--accent-cyan); text-transform: uppercase; margin-bottom: 0.4rem;">
+        <div style="font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; color: #22D3EE; text-transform: uppercase; margin-bottom: 0.4rem;">
             // ACTIVE CRAWL MONITORING TELEMETRY
         </div>
     """, unsafe_allow_html=True)
@@ -77,7 +77,7 @@ def render_live_progress_container():
 def render_results_section(pages: List[PageResult], summary: CrawlSessionSummary):
     """Render interactive results table with search, depth filter, and downloads."""
     st.markdown("""
-        <div style="font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; color: var(--accent-cyan); text-transform: uppercase; margin-bottom: 0.3rem;">
+        <div style="font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; color: #22D3EE; text-transform: uppercase; margin-bottom: 0.3rem;">
             // CRAWLED WEBPAGES TELEMETRY
         </div>
         <h3 style="margin-top: 0; color: #FFFFFF; font-weight: 700; font-size: 1.35rem;">Crawled Webpages Results</h3>
@@ -187,7 +187,7 @@ def render_results_section(pages: List[PageResult], summary: CrawlSessionSummary
             use_container_width=True,
         )
     with col_dl2:
-        full_json = json.dumps([p.__dict__ for p in pages], indent=2).encode("utf-8")
+        full_json = json.dumps([p.to_dict() for p in pages], indent=2).encode("utf-8")
         st.download_button(
             label="⬇ Download Full Data (JSON)",
             data=full_json,
@@ -209,10 +209,10 @@ def render_results_section(pages: List[PageResult], summary: CrawlSessionSummary
 def render_failed_section(failures: List[CrawlFailure]):
     """Render the table of failed or skipped URLs with dark glass panel and red illumination."""
     st.markdown("""
-        <div style="font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; color: var(--danger); text-transform: uppercase; margin-bottom: 0.3rem;">
-            // EXCEPTION & REJECTION LOG
+        <div style="font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; color: #F43F5E; text-transform: uppercase; margin-bottom: 0.3rem;">
+            // EXCEPTION &amp; REJECTION LOG
         </div>
-        <h3 style="margin-top: 0; color: #FFFFFF; font-weight: 700; font-size: 1.35rem;">Failed & Excluded Requests</h3>
+        <h3 style="margin-top: 0; color: #FFFFFF; font-weight: 700; font-size: 1.35rem;">Failed &amp; Excluded Requests</h3>
     """, unsafe_allow_html=True)
 
     if not failures:
@@ -256,7 +256,7 @@ def render_failed_section(failures: List[CrawlFailure]):
 def render_url_explorer(pages: List[PageResult]):
     """Allow deep-dive inspection into an individual crawled page with glass telemetry panels."""
     st.markdown("""
-        <div style="font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; color: var(--cyan); text-transform: uppercase; margin-bottom: 0.3rem;">
+        <div style="font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; color: #22D3EE; text-transform: uppercase; margin-bottom: 0.3rem;">
             // NODE TELEMETRY INSPECTOR
         </div>
         <h3 style="margin-top: 0; color: #FFFFFF; font-weight: 700; font-size: 1.35rem;">URL Deep-Dive Explorer</h3>
@@ -410,7 +410,7 @@ def render_charts_section(pages: List[PageResult], failures: List[CrawlFailure],
 def render_history_section(db: CrawlDatabase):
     """Render SQLite historical crawl sessions browser with reload and delete capabilities."""
     st.markdown("""
-        <div style="font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; color: var(--accent-cyan); text-transform: uppercase; margin-bottom: 0.3rem;">
+        <div style="font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; color: #22D3EE; text-transform: uppercase; margin-bottom: 0.3rem;">
             // SQLITE RELATIONAL ARCHIVE
         </div>
         <h3 style="margin-top: 0; color: #FFFFFF; font-weight: 700; font-size: 1.35rem;">Historical Crawl Sessions</h3>

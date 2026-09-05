@@ -151,7 +151,8 @@ st.markdown("""
         </div>
 """, unsafe_allow_html=True)
 
-col_pre, col_url, col_btn, col_clr = st.columns([2.0, 5.0, 1.4, 1.0])
+# Bug 7 fix: wider action buttons so they don't wrap below 1280px
+col_pre, col_url, col_btn, col_clr = st.columns([1.8, 4.5, 1.6, 1.1])
 
 with col_pre:
     preset_names = ["⚡ Presets: Select Target..."] + list(PRESETS.keys())
@@ -236,7 +237,7 @@ with st.expander("⚙️ Traversal Parameters & Politeness Policies", expanded=F
             key="chk_sqlite",
         )
 
-st.markdown("</div>", unsafe_allow_html=True)
+
 
 # Handle Crawl Execution
 if btn_start:
@@ -334,15 +335,15 @@ pages = st.session_state.get("page_results", [])
 failures = st.session_state.get("failures", [])
 edges = st.session_state.get("graph_edges", [])
 
-# Fixed, stable tab headers (prevents tab-switch resets on state updates)
+# Fixed, stable tab headers — shortened to prevent truncation at 1280px viewport
 tab_mission, tab_results, tab_graph, tab_charts, tab_explorer, tab_failed, tab_history = st.tabs([
-    "⚡ Mission Control",
-    "📋 Results Table",
-    "🕸️ Network Topology",
-    "📈 Traversal Analytics",
-    "🔍 URL Deep Dive",
-    "⚠️ Failed Requests",
-    "📜 SQLite History",
+    "⚡ Mission",
+    "📋 Results",
+    "🕸️ Network",
+    "📈 Analytics",
+    "🔍 URL Dive",
+    "⚠️ Failures",
+    "📜 History",
 ])
 
 # ==============================================================================
@@ -367,7 +368,7 @@ with tab_mission:
     else:
         # Futuristic Standby Guidance Panel
         st.markdown("""
-            <div style="background: linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.01) 100%), rgba(15, 23, 42, 0.65); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.10); border-top: 3px solid #22D3EE; border-radius: var(--radius); padding: 1.2rem 1.6rem; box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 25px rgba(34, 211, 238, 0.12); margin-top: 0.5rem; margin-bottom: 1.2rem;">
+            <div style="background: linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.01) 100%), rgba(15, 23, 42, 0.65); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.10); border-top: 3px solid #22D3EE; border-radius: 12px; padding: 1.2rem 1.6rem; box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 25px rgba(34, 211, 238, 0.12); margin-top: 0.5rem; margin-bottom: 1.2rem;">
                 <div style="font-size: 0.72rem; font-weight: 700; color: #22D3EE; letter-spacing: 0.09em; text-transform: uppercase; margin-bottom: 0.3rem; display: flex; align-items: center; gap: 0.45rem;">
                     <span class="pulse-beacon-cyan"></span> SYSTEM READY // STANDBY MODE
                 </div>

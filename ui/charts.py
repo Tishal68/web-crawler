@@ -203,7 +203,8 @@ def create_response_time_chart(pages: List[PageResult]) -> go.Figure:
         "URL": p.url,
         "Title": p.title,
         "Depth": f"Depth {p.depth}",
-        "Response Time (s)": p.response_time,
+        # Clamp to 0.001s minimum so no bubble has size=0 and disappears
+        "Response Time (s)": max(p.response_time, 0.001),
     } for i, p in enumerate(pages)])
 
     fig = px.scatter(
