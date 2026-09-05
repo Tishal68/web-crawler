@@ -318,15 +318,19 @@ def render_deep_crawler_mode():
             terminal_placeholder = st.empty()
             recent_logs = []
 
-            for event in crawler.crawl():
+            for event in crawler.crawl_stream():
                 pct = min(1.0, event.pages_crawled / max(1, config.max_pages))
                 progress_bar.progress(pct)
                 status_text.text(f"BFS Active (Depth {event.current_depth}) // {event.current_url}")
                 stat_pages.metric("Pages Crawled", event.pages_crawled)
-                stat_queue.metric("URLs Queued", event.queue_size)
-                stat_elapsed.metric("Elapsed Time", f"{event.elapsed_seconds:.1f}s")
+                q_size = getattr(event, "queue_size", None)
+                if q_size is None:
+                    q_size = max(0, event.discovered_count - event.pages_crawled - event.failed_count)
+                stat_queue.metric("URLs Queued", q_size)
+                cur_elapsed = (datetime.now() - start_time).total_seconds()
+                stat_elapsed.metric("Elapsed Time", f"{cur_elapsed:.1f}s")
 
-                status_glyph = "✓" if event.status == "success" else "✗"
+                status_glyph = "✓" if (getattr(event, "status", None) or event.event_type) == "success" else "✗"
                 log_line = f"[{status_glyph}] [D:{event.current_depth}] {event.current_url}"
                 recent_logs.append(log_line)
                 if len(recent_logs) > 6:

@@ -97,23 +97,29 @@ def render_live_progress_container():
     Returns:
         progress_container, progress_bar, status_text, stat_pages, stat_queue, stat_elapsed
     """
-    st.markdown("""
-        <div style="font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; color: #22D3EE; text-transform: uppercase; margin-bottom: 0.4rem;">
-            // ACTIVE CRAWL MONITORING TELEMETRY
-        </div>
-    """, unsafe_allow_html=True)
-
     progress_container = st.container()
-    status_text = st.empty()
-    progress_bar = st.progress(0.0)
 
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        stat_pages = st.empty()
-    with col2:
-        stat_queue = st.empty()
-    with col3:
-        stat_elapsed = st.empty()
+    with progress_container:
+        st.markdown("""
+            <div style="font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; color: #22D3EE; text-transform: uppercase; margin-bottom: 0.4rem;">
+                // ACTIVE CRAWL MONITORING TELEMETRY
+            </div>
+        """, unsafe_allow_html=True)
+
+        status_text = st.empty()
+        status_text.text("BFS Initializing // Connecting to seed...")
+        progress_bar = st.progress(0.0)
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            stat_pages = st.empty()
+            stat_pages.metric("Pages Crawled", 0)
+        with col2:
+            stat_queue = st.empty()
+            stat_queue.metric("URLs Queued", 0)
+        with col3:
+            stat_elapsed = st.empty()
+            stat_elapsed.metric("Elapsed Time", "0.0s")
 
     return LiveProgressContainer(
         progress_container=progress_container,

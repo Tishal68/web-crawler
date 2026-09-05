@@ -102,6 +102,17 @@ class CrawlProgressEvent:
     message: str
     page_result: Optional[PageResult] = None
     failure: Optional[CrawlFailure] = None
+    queue_size: Optional[int] = None
+    elapsed_seconds: float = 0.0
+
+    def __post_init__(self):
+        if self.queue_size is None:
+            self.queue_size = max(0, self.discovered_count - self.pages_crawled - self.failed_count)
+
+    @property
+    def status(self) -> str:
+        """Alias for event_type to support legacy consumers."""
+        return self.event_type
 
 
 @dataclass

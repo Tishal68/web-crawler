@@ -452,3 +452,36 @@ class TestSQLiteDatabaseStorage:
         crawled_urls = [p.url for p in results["page_results"]]
         assert "https://external-domain.org/article" in crawled_urls
 
+
+def test_crawl_stream_event_attributes_and_ui_compatibility():
+    """Verify that crawl_stream yields events with all fields and properties expected by app.py."""
+    html_content = "<html><body><a href='https://example.com/p1'>P1</a></body></html>"
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.headers = {"Content-Type": "text/html"}
+    mock_resp.is_redirect = False
+    mock_resp.iter_content.return_value = [html_content.encode("utf-8")]
+
+    with patch("requests.Session.get", return_value=mock_resp), \
+         patch("crawler.crawler.is_safe_target_url", return_value=(True, None)):
+        config = CrawlConfig(
+            start_url="https://example.com",
+            max_depth=1,
+            max_pages=2,
+            respect_robots=False,
+            request_delay=0.0,
+        )
+        crawler = WebCrawler(config=config)
+        events = list(crawler.crawl_stream())
+        assert len(events) > 0
+
+        for ev in events:
+            assert hasattr(ev, "current_depth")
+            assert hasattr(ev, "current_url")
+            assert hasattr(ev, "pages_crawled")
+            assert hasattr(ev, "queue_size")
+            assert hasattr(ev, "elapsed_seconds")
+            assert hasattr(ev, "status")
+            assert isinstance(ev.queue_size, int)
+            assert ev.status in ("start", "searching", "fetching", "success", "failure", "skipped", "completed")
+
