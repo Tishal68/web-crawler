@@ -58,8 +58,14 @@ def render_source_inspector(search_result: Optional[SearchPipelineResult] = None
     status_color = "#22C55E" if target_source.fetch_success else "#F59E0B"
     status_text = "Page Fetched & Parsed (200 OK)" if target_source.fetch_success else f"Search Snippet Fallback ({target_source.error_message or 'Fetch Error'})"
 
-    safe_url = html.escape(target_source.url)
-    safe_title = html.escape(target_source.title)
+    raw_url = target_source.url or ""
+    safe_href = html.escape(raw_url, quote=True) if raw_url.startswith(("http://", "https://")) else "#"
+    safe_url_text = html.escape(raw_url)
+    safe_title = html.escape(target_source.title or "Untitled Source")
+    safe_domain = html.escape(target_source.domain or "")
+    safe_type = html.escape(str(target_source.source_type or "Web Source"))
+    safe_date = html.escape(date_display)
+    safe_status = html.escape(status_text)
 
     st.markdown(f"""
         <div class="kpi-card" style="padding: 1.1rem 1.3rem; margin-bottom: 1.2rem;">
@@ -72,28 +78,28 @@ def render_source_inspector(search_result: Optional[SearchPipelineResult] = None
                         {safe_title}
                     </div>
                     <div style="font-size: 0.78rem; font-family: 'JetBrains Mono', monospace; word-break: break-all;">
-                        <a href="{safe_url}" target="_blank" style="color: #38BDF8; text-decoration: underline;">
-                            {safe_url} ↗
+                        <a href="{safe_href}" target="_blank" rel="noopener noreferrer" style="color: #38BDF8; text-decoration: underline;">
+                            {safe_url_text} ↗
                         </a>
                     </div>
                 </div>
                 <div style="text-align: right;">
                     <span style="background: rgba(34, 211, 238, 0.12); border: 1px solid #22D3EE; color: #22D3EE; padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.72rem; font-weight: 700;">
-                        {target_source.source_type}
+                        {safe_type}
                     </span>
                     <div style="font-size: 0.72rem; color: {status_color}; font-weight: 600; margin-top: 0.4rem;">
-                        ● {status_text}
+                        ● {safe_status}
                     </div>
                 </div>
             </div>
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.8rem; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 0.8rem;">
                 <div>
                     <span style="color: #64748B; font-size: 0.72rem; text-transform: uppercase;">Domain:</span>
-                    <div style="color: #F8FAFC; font-weight: 600; font-size: 0.82rem;">{target_source.domain}</div>
+                    <div style="color: #F8FAFC; font-weight: 600; font-size: 0.82rem;">{safe_domain}</div>
                 </div>
                 <div>
                     <span style="color: #64748B; font-size: 0.72rem; text-transform: uppercase;">Publication Date:</span>
-                    <div style="color: #F8FAFC; font-weight: 600; font-size: 0.82rem;">{date_display}</div>
+                    <div style="color: #F8FAFC; font-weight: 600; font-size: 0.82rem;">{safe_date}</div>
                 </div>
                 <div>
                     <span style="color: #64748B; font-size: 0.72rem; text-transform: uppercase;">Extracted Passages:</span>

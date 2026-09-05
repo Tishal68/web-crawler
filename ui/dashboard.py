@@ -131,7 +131,7 @@ def render_live_progress_container():
     )
 
 
-def render_results_section(pages: List[PageResult], summary: CrawlSessionSummary):
+def render_results_section(pages: List[PageResult], summary: Optional[CrawlSessionSummary] = None):
     """Render interactive results table with search, depth filter, and downloads."""
     st.markdown("""
         <div style="font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; color: #22D3EE; text-transform: uppercase; margin-bottom: 0.3rem;">
@@ -258,7 +258,7 @@ def render_results_section(pages: List[PageResult], summary: CrawlSessionSummary
     )
 
     col_dl1, col_dl2, col_dl3 = st.columns(3)
-    safe_sid = "".join(c for c in summary.session_id if c.isalnum() or c in ("-", "_"))
+    safe_sid = "".join(c for c in summary.session_id if c.isalnum() or c in ("-", "_")) if summary else "session"
     with col_dl1:
         csv_data = sanitize_dataframe_for_csv(filtered_df).to_csv(index=False).encode("utf-8")
         st.download_button(
@@ -278,14 +278,17 @@ def render_results_section(pages: List[PageResult], summary: CrawlSessionSummary
             use_container_width=True,
         )
     with col_dl3:
-        summary_csv = sanitize_dataframe_for_csv(pd.DataFrame([summary.to_dict()])).to_csv(index=False).encode("utf-8")
-        st.download_button(
-            label="⬇ Download Session Report (CSV)",
-            data=summary_csv,
-            file_name=f"crawl_report_{safe_sid}.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
+        if summary:
+            summary_csv = sanitize_dataframe_for_csv(pd.DataFrame([summary.to_dict()])).to_csv(index=False).encode("utf-8")
+            st.download_button(
+                label="⬇ Download Session Report (CSV)",
+                data=summary_csv,
+                file_name=f"crawl_report_{safe_sid}.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+        else:
+            st.button("Session Report Unavailable", disabled=True, use_container_width=True)
 
 
 def render_failed_section(failures: List[CrawlFailure]):
@@ -490,7 +493,12 @@ def render_network_graph_section(pages: List[PageResult], edges: List[Dict[str, 
     st.plotly_chart(create_crawl_network_graph(pages, edges, max_nodes=60), use_container_width=True)
 
 
-def render_charts_section(pages: List[PageResult], failures: List[CrawlFailure], summary: CrawlSessionSummary, edges: Optional[List[Dict[str, Any]]] = None):
+def render_charts_section(
+    pages: List[PageResult],
+    failures: Optional[List[CrawlFailure]] = None,
+    summary: Optional[CrawlSessionSummary] = None,
+    edges: Optional[List[Dict[str, Any]]] = None,
+):
     """Render analytical charts for traversal depth, link distribution, HTTP status, and latency."""
     if not pages:
         st.info("No crawled data available to visualize. Launch a crawl session first.")
@@ -503,17 +511,21 @@ def render_charts_section(pages: List[PageResult], failures: List[CrawlFailure],
         <h3 style="margin-top: 0; color: #FFFFFF; font-weight: 700; font-size: 1.25rem; margin-bottom: 0.8rem;">Crawl Traversal & Latency Analytics</h3>
     """, unsafe_allow_html=True)
 
+    internal_links = summary.total_internal_links if summary else sum(p.internal_links_count for p in pages)
+    external_links = summary.total_external_links if summary else sum(p.external_links_count for p in pages)
+    fail_count = len(failures) if failures is not None else (summary.failed_urls_count if summary else 0)
+
     col_t1, col_t2, col_t3 = st.columns([1.2, 1, 1])
     with col_t1:
         st.plotly_chart(create_depth_bar_chart(pages), use_container_width=True)
     with col_t2:
         st.plotly_chart(
-            create_links_distribution_chart(summary.total_internal_links, summary.total_external_links),
+            create_links_distribution_chart(internal_links, external_links),
             use_container_width=True
         )
     with col_t3:
         st.plotly_chart(
-            create_status_donut_chart(len(pages), len(failures)),
+            create_status_donut_chart(len(pages), fail_count),
             use_container_width=True
         )
 

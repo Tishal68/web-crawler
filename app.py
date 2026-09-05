@@ -109,8 +109,13 @@ if "input_max_depth" not in st.session_state:
 if "input_max_pages" not in st.session_state:
     st.session_state["input_max_pages"] = 30
 
-# Safety reset
-st.session_state["is_crawling"] = False
+# State and lifecycle initialization
+if "is_crawling" not in st.session_state:
+    st.session_state["is_crawling"] = False
+if "crawler_lifecycle" not in st.session_state:
+    st.session_state["crawler_lifecycle"] = "IDLE"
+if "search_lifecycle" not in st.session_state:
+    st.session_state["search_lifecycle"] = "IDLE"
 
 
 def on_preset_change():
@@ -133,6 +138,13 @@ def load_preset_card_callback(preset_title: str):
         st.session_state["console_preset_select"] = preset_title
 
 
+def switch_to_search_callback(query_text: str):
+    """Safely transitions operational mode to search before widget instantiation."""
+    st.session_state["search_query_input"] = query_text
+    st.session_state["app_operational_mode"] = "🔎 Web Search & Answers"
+    st.session_state["trigger_auto_search"] = True
+
+
 def reset_crawl_state_callback():
     """Reset active session state and restore default configuration safely before widget instantiation."""
     st.session_state["crawl_summary"] = None
@@ -150,6 +162,7 @@ def reset_crawl_state_callback():
     st.session_state["chk_sqlite"] = True
     st.session_state["console_preset_select"] = "⚡ Presets: Select Target..."
     st.session_state["is_crawling"] = False
+    st.session_state["crawler_lifecycle"] = "IDLE"
     st.session_state.pop("results_search_box", None)
     st.session_state.pop("results_depth_select", None)
     st.session_state.pop("results_status_select", None)
@@ -191,11 +204,13 @@ def render_deep_crawler_mode():
                 </div>
             """, unsafe_allow_html=True)
         with col_sw:
-            if st.button("🔎 Switch to Web Search & Answers", key="btn_switch_search_mode", use_container_width=True):
-                st.session_state["search_query_input"] = raw_deck_input
-                st.session_state["app_operational_mode"] = "🔎 Web Search & Answers"
-                st.session_state["trigger_auto_search"] = True
-                st.rerun()
+            st.button(
+                "🔎 Switch to Web Search & Answers",
+                key="btn_switch_search_mode",
+                use_container_width=True,
+                on_click=switch_to_search_callback,
+                args=(raw_deck_input,),
+            )
 
     col_pre, col_url, col_btn, col_clr = st.columns([1.8, 4.5, 1.6, 1.1])
 
@@ -309,47 +324,54 @@ def render_deep_crawler_mode():
         )
 
         st.session_state["is_crawling"] = True
+        st.session_state["crawler_lifecycle"] = "CRAWLING"
         progress_container, progress_bar, status_text, stat_pages, stat_queue, stat_elapsed = render_live_progress_container()
 
         crawler = WebCrawler(config=config)
         start_time = datetime.now()
 
-        with progress_container:
-            terminal_placeholder = st.empty()
-            recent_logs = []
+        try:
+            with progress_container:
+                terminal_placeholder = st.empty()
+                recent_logs = []
 
-            for event in crawler.crawl_stream():
-                pct = min(1.0, event.pages_crawled / max(1, config.max_pages))
-                progress_bar.progress(pct)
-                status_text.text(f"BFS Active (Depth {event.current_depth}) // {event.current_url}")
-                stat_pages.metric("Pages Crawled", event.pages_crawled)
-                q_size = getattr(event, "queue_size", None)
-                if q_size is None:
-                    q_size = max(0, event.discovered_count - event.pages_crawled - event.failed_count)
-                stat_queue.metric("URLs Queued", q_size)
-                cur_elapsed = (datetime.now() - start_time).total_seconds()
-                stat_elapsed.metric("Elapsed Time", f"{cur_elapsed:.1f}s")
+                for event in crawler.crawl_stream():
+                    pct = min(1.0, event.pages_crawled / max(1, config.max_pages))
+                    progress_bar.progress(pct)
+                    status_text.text(f"BFS Active (Depth {event.current_depth}) // {event.current_url}")
+                    stat_pages.metric("Pages Crawled", event.pages_crawled)
+                    q_size = getattr(event, "queue_size", None)
+                    if q_size is None:
+                        q_size = max(0, event.discovered_count - event.pages_crawled - event.failed_count)
+                    stat_queue.metric("URLs Queued", q_size)
+                    cur_elapsed = (datetime.now() - start_time).total_seconds()
+                    stat_elapsed.metric("Elapsed Time", f"{cur_elapsed:.1f}s")
 
-                status_glyph = "✓" if (getattr(event, "status", None) or event.event_type) == "success" else "✗"
-                log_line = f"[{status_glyph}] [D:{event.current_depth}] {event.current_url}"
-                recent_logs.append(log_line)
-                if len(recent_logs) > 6:
-                    recent_logs.pop(0)
+                    status_glyph = "✓" if (getattr(event, "status", None) or event.event_type) == "success" else "✗"
+                    log_line = f"[{status_glyph}] [D:{event.current_depth}] {event.current_url}"
+                    recent_logs.append(log_line)
+                    if len(recent_logs) > 6:
+                        recent_logs.pop(0)
 
-                terminal_placeholder.markdown(f"""
-                    <div class="live-stream-box" style="margin-top: 0.5rem; margin-bottom: 0.5rem; padding: 0.6rem 0.8rem;">
-                        <div class="stream-title" style="margin-bottom: 0.3rem;">
-                            <span class="stream-beacon"></span> LIVE BFS PACKET STREAM
+                    terminal_placeholder.markdown(f"""
+                        <div class="live-stream-box" style="margin-top: 0.5rem; margin-bottom: 0.5rem; padding: 0.6rem 0.8rem;">
+                            <div class="stream-title" style="margin-bottom: 0.3rem;">
+                                <span class="stream-beacon"></span> LIVE BFS PACKET STREAM
+                            </div>
+                            <div style="font-size: 0.76rem; color: #94A3B8; font-family: 'JetBrains Mono', monospace;">
+                                {"<br>".join([html.escape(l) for l in recent_logs])}
+                            </div>
                         </div>
-                        <div style="font-size: 0.76rem; color: #94A3B8; font-family: 'JetBrains Mono', monospace;">
-                            {"<br>".join([html.escape(l) for l in recent_logs])}
-                        </div>
-                    </div>
-                """, unsafe_allow_html=True)
+                    """, unsafe_allow_html=True)
+            st.session_state["crawler_lifecycle"] = "COMPLETE"
+        except Exception as crawl_err:
+            st.session_state["crawler_lifecycle"] = "ERROR"
+            st.error(f"Crawl execution encountered an error: {crawl_err}")
+        finally:
+            st.session_state["is_crawling"] = False
 
         end_time = datetime.now()
         elapsed = (end_time - start_time).total_seconds()
-        st.session_state["is_crawling"] = False
 
         exec_summary = CrawlSessionSummary(
             session_id=str(datetime.now().strftime("%Y%m%d_%H%M%S")),
@@ -480,7 +502,7 @@ def render_deep_crawler_mode():
 
     with tab_charts:
         if pages:
-            render_charts_section(pages)
+            render_charts_section(pages, failures=failures, summary=summary, edges=edges)
         else:
             st.info("Traversal distribution metrics will render once pages are crawled.")
 

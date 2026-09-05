@@ -5,12 +5,29 @@ grounded answers, explainable confidence badges, contradiction alerts, and verif
 """
 
 import html
+import re
 import time
 from typing import Optional, List
 import streamlit as st
 
 from search.pipeline import SearchPipeline, SearchPipelineResult
 from crawler.database import CrawlDatabase
+
+
+def format_text_with_citations(raw_text: str) -> str:
+    """Safely escape text for HTML and format [1], [2] citations into interactive clickable badges."""
+    if not raw_text:
+        return ""
+    escaped = html.escape(raw_text)
+    def _rep(m):
+        sid = m.group(1)
+        return (
+            f'<a href="#source-{sid}" style="background: rgba(56, 189, 248, 0.22); '
+            f'border: 1px solid rgba(56, 189, 248, 0.45); color: #38BDF8; padding: 0.1rem 0.4rem; '
+            f'border-radius: 4px; text-decoration: none; font-weight: 700; font-size: 0.76rem; '
+            f'margin: 0 0.15rem; font-family: \'JetBrains Mono\', monospace;">[{sid}]</a>'
+        )
+    return re.sub(r"\[(\d+)\]", _rep, escaped)
 
 
 SEARCH_PRESETS = {
@@ -98,6 +115,9 @@ def render_search_view(pipeline: SearchPipeline, db: CrawlDatabase):
                 </div>
             """, unsafe_allow_html=True)
 
+    if "search_lifecycle" not in st.session_state:
+        st.session_state["search_lifecycle"] = "IDLE"
+
     # Trigger Search Execution
     should_run = btn_search or st.session_state.pop("trigger_auto_search", False)
 
@@ -113,23 +133,44 @@ def render_search_view(pipeline: SearchPipeline, db: CrawlDatabase):
         elif "Multi-Engine" in provider_opt:
             pref = "multi"
 
-        # Execute pipeline with live status tracker
-        with st.status(f"🔎 Researching: \"{clean_q}\" across the public web...", expanded=True) as status:
-            progress_bar = st.progress(0.0)
+        st.session_state["search_lifecycle"] = "SEARCHING"
+        try:
+            # Execute pipeline with live status tracker
+            with st.status(f"🔎 Researching: \"{clean_q}\" across the public web...", expanded=True) as status:
+                progress_bar = st.progress(0.0)
 
-            def _update_ui(msg: str, pct: float):
-                status.write(f"▸ {msg}")
-                progress_bar.progress(min(1.0, pct))
+                def _update_ui(msg: str, pct: float):
+                    status.write(f"▸ {msg}")
+                    progress_bar.progress(min(1.0, pct))
 
-            search_result = pipeline.run(
-                query=clean_q,
-                num_sources=num_sources,
-                provider_preference=pref,
-                progress_callback=_update_ui,
-            )
-            status.update(label=f"✓ Research complete ({search_result.total_elapsed:.2f}s) — Grounded answer ready", state="complete", expanded=False)
+                if "search_conversation_history" not in st.session_state:
+                    st.session_state["search_conversation_history"] = []
 
-        st.session_state["active_search_result"] = search_result
+                search_result = pipeline.run(
+                    query=clean_q,
+                    num_sources=num_sources,
+                    provider_preference=pref,
+                    progress_callback=_update_ui,
+                    conversation_history=st.session_state["search_conversation_history"],
+                )
+                status.update(label=f"✓ Research complete ({search_result.total_elapsed:.2f}s) — Grounded answer ready", state="complete", expanded=False)
+
+            if search_result and search_result.answer:
+                st.session_state["search_conversation_history"].append({
+                    "role": "user",
+                    "content": clean_q,
+                })
+                st.session_state["search_conversation_history"].append({
+                    "role": "assistant",
+                    "content": search_result.answer.direct_answer,
+                })
+
+            st.session_state["active_search_result"] = search_result
+            st.session_state["search_lifecycle"] = "COMPLETE"
+        except Exception as e:
+            st.session_state["search_lifecycle"] = "ERROR"
+            st.error(f"Search pipeline encountered an error: {e}")
+            return
 
     # 2. Render Results if Available
     active_res: Optional[SearchPipelineResult] = st.session_state.get("active_search_result")
@@ -240,13 +281,14 @@ def render_search_view(pipeline: SearchPipeline, db: CrawlDatabase):
 
     # 5. Direct Answer Hero Card
     if answer:
+        formatted_direct_answer = format_text_with_citations(answer.direct_answer)
         st.markdown(f"""
             <div style="background: linear-gradient(135deg, rgba(56, 189, 248, 0.08) 0%, rgba(139, 92, 246, 0.05) 100%), rgba(15, 23, 42, 0.85); border: 1px solid rgba(56, 189, 248, 0.35); border-left: 4px solid #38BDF8; border-radius: 10px; padding: 1.2rem 1.5rem; margin-top: 1rem; margin-bottom: 1.2rem; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);">
                 <div style="font-size: 0.72rem; font-weight: 800; color: #38BDF8; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.4rem;">
                     🎯 GROUNDED DIRECT ANSWER
                 </div>
                 <div style="font-size: 1.05rem; color: #F8FAFC; line-height: 1.65; font-weight: 500;">
-                    {html.escape(answer.direct_answer)}
+                    {formatted_direct_answer}
                 </div>
             </div>
         """, unsafe_allow_html=True)
@@ -265,11 +307,12 @@ def render_search_view(pipeline: SearchPipeline, db: CrawlDatabase):
                 "uncovered": ("⚪ Unverified", "#94A3B8", "rgba(148, 163, 184, 0.12)"),
             }.get(sec.get("status"), ("🟢 Supported", "#38BDF8", "rgba(56, 189, 248, 0.12)"))
 
+            formatted_sec = format_text_with_citations(sec.get("content", ""))
             st.markdown(f"""
                 <div class="kpi-card" style="padding: 1rem 1.3rem; margin-bottom: 0.8rem;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.4rem;">
                         <div style="font-size: 0.94rem; font-weight: 700; color: #FFFFFF;">
-                            {html.escape(sec['title'])}
+                            {html.escape(sec.get('title', ''))}
                         </div>
                         <div>
                             <span style="background: {status_style[2]}; border: 1px solid {status_style[1]}; color: {status_style[1]}; padding: 0.15rem 0.55rem; border-radius: 4px; font-size: 0.68rem; font-weight: 700;">
@@ -278,7 +321,7 @@ def render_search_view(pipeline: SearchPipeline, db: CrawlDatabase):
                         </div>
                     </div>
                     <div style="font-size: 0.88rem; color: #E2E8F0; line-height: 1.65;">
-                        {html.escape(sec['content'])}
+                        {formatted_sec}
                     </div>
                 </div>
             """, unsafe_allow_html=True)
@@ -358,9 +401,10 @@ def render_search_view(pipeline: SearchPipeline, db: CrawlDatabase):
             </div>
         """, unsafe_allow_html=True)
         for finding in answer.key_findings:
+            formatted_finding = format_text_with_citations(finding)
             st.markdown(f"""
                 <div style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(255, 255, 255, 0.08); border-left: 3px solid #8B5CF6; border-radius: 6px; padding: 0.75rem 1rem; margin-bottom: 0.5rem; font-size: 0.86rem; color: #E2E8F0; line-height: 1.5;">
-                    {html.escape(finding)}
+                    {formatted_finding}
                 </div>
             """, unsafe_allow_html=True)
 
@@ -374,13 +418,16 @@ def render_search_view(pipeline: SearchPipeline, db: CrawlDatabase):
         """, unsafe_allow_html=True)
 
         for c in citations:
-            safe_url = html.escape(c.url)
-            safe_title = html.escape(c.title)
+            raw_url = c.url or ""
+            safe_href = html.escape(raw_url, quote=True) if raw_url.startswith(("http://", "https://")) else "#"
+            safe_title = html.escape(c.title or "Untitled Source")
             safe_quote = html.escape(c.sample_quote) if c.sample_quote else ""
-            date_str = f" · 📅 {c.published_date}" if c.published_date else ""
+            date_str = f" · 📅 {html.escape(c.published_date)}" if c.published_date else ""
+            safe_domain = html.escape(c.domain or "")
+            safe_source_type = html.escape(str(c.source_type or "Web Source"))
 
             st.markdown(f"""
-                <div class="kpi-card" style="padding: 0.95rem 1.2rem; margin-bottom: 0.75rem;">
+                <div id="source-{c.index}" class="kpi-card" style="padding: 0.95rem 1.2rem; margin-bottom: 0.75rem;">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.4rem;">
                         <div style="font-size: 0.92rem; font-weight: 700; color: #FFFFFF;">
                             <span style="color: #38BDF8; font-family: 'JetBrains Mono', monospace; font-weight: 800; margin-right: 0.35rem;">[{c.index}]</span>
@@ -388,16 +435,17 @@ def render_search_view(pipeline: SearchPipeline, db: CrawlDatabase):
                         </div>
                         <div>
                             <span style="background: rgba(34, 211, 238, 0.12); border: 1px solid #22D3EE; color: #22D3EE; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.68rem; font-weight: 700;">
-                                {c.source_type}
+                                {safe_source_type}
                             </span>
                         </div>
                     </div>
                     <div style="font-size: 0.75rem; color: #94A3B8; margin-bottom: 0.5rem; font-family: 'JetBrains Mono', monospace;">
-                        <b>{c.domain}</b>{date_str} &bull; <a href="{safe_url}" target="_blank" style="color: #38BDF8; text-decoration: underline;">Open original source ↗</a>
+                        <b>{safe_domain}</b>{date_str} &bull; <a href="{safe_href}" target="_blank" rel="noopener noreferrer" style="color: #38BDF8; text-decoration: underline;">Open original source ↗</a>
                     </div>
                     {f'<div style="font-size: 0.78rem; color: #CBD5E1; font-style: italic; background: rgba(0,0,0,0.25); padding: 0.5rem 0.75rem; border-radius: 4px; border-left: 2px solid #64748B;">"{safe_quote}"</div>' if safe_quote else ''}
                 </div>
             """, unsafe_allow_html=True)
+
 
     # 9. Grounding Caveats
     if answer and answer.caveats:
@@ -436,9 +484,10 @@ def render_search_history_view(db: CrawlDatabase):
         h_id = item["id"]
         q_text = html.escape(item["query"])
         time_str = item["timestamp"][:19].replace("T", " ")
-        badge = item.get("confidence_badge") or "🟡 Moderately Supported"
+        badge = html.escape(str(item.get("confidence_badge") or "🟡 Moderately Supported"))
         score = item.get("confidence_score") or 0.65
         ans = html.escape(item.get("direct_answer") or "No answer synthesized.")
+        prov = html.escape(str(item.get('provider_name', 'Web')))
 
         st.markdown(f"""
             <div class="kpi-card" style="padding: 0.95rem 1.2rem; margin-bottom: 0.75rem;">
@@ -456,7 +505,7 @@ def render_search_history_view(db: CrawlDatabase):
                     </div>
                 </div>
                 <div style="font-size: 0.74rem; color: #94A3B8; margin-bottom: 0.5rem; font-family: 'JetBrains Mono', monospace;">
-                    📅 {time_str} &bull; Engine: {item.get('provider_name', 'Web')} &bull; Sources: {item.get('results_count', 0)}
+                    📅 {time_str} &bull; Engine: {prov} &bull; Sources: {item.get('results_count', 0)}
                 </div>
                 <div style="font-size: 0.84rem; color: #E2E8F0; line-height: 1.5; margin-bottom: 0.5rem;">
                     {ans}

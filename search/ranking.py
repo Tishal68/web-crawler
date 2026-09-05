@@ -129,7 +129,16 @@ def rank_search_results(
     for composite, item in scored_items:
         dom = get_domain(item.url).lower()
         curr_count = domain_counts.get(dom, 0)
-        if curr_count < domain_diversity_limit:
+        
+        # Adaptive domain cap: allow authoritative primary sources up to 4 results
+        is_primary_source = (
+            dom.endswith((".gov", ".edu"))
+            or any(auth in dom for auth in ("nasa.gov", "esa.int", "stsci.edu", "python.org", "postgresql.org", "mysql.com", "w3.org", "ietf.org"))
+            or getattr(item, "authority_score", 0.0) >= 0.85
+        )
+        effective_limit = domain_diversity_limit + 2 if is_primary_source else domain_diversity_limit
+
+        if curr_count < effective_limit:
             ranked.append(item)
             domain_counts[dom] = curr_count + 1
         else:

@@ -466,3 +466,86 @@ class QueryAnalyzer:
             f"What are the latest developments and future roadmap for {main_subject}?",
             f"What are the most common real-world use cases for {main_subject}?",
         ]
+
+
+def extract_core_subject(text: str) -> str:
+    """Extract the primary subject or entity from a previous query."""
+    if not text:
+        return ""
+    clean = text.strip().rstrip("?.! ")
+    lower = clean.lower()
+
+    # Known entity shortcuts
+    if "james webb" in lower or "jwst" in lower:
+        return "James Webb Space Telescope"
+    if "quantum computing" in lower or "quantum computer" in lower:
+        return "quantum computing"
+    if "postgresql" in lower and "mysql" in lower:
+        return "PostgreSQL vs MySQL"
+    if "postgresql" in lower:
+        return "PostgreSQL"
+    if "mysql" in lower:
+        return "MySQL"
+    if "python" in lower:
+        return "Python"
+
+    # Remove common question preambles
+    pattern = r"^(?:what is|what are|explain|how does|tell me about|who built|why is|compare)\s+(?:the\s+|a\s+|an\s+)?"
+    cleaned_subject = re.sub(pattern, "", clean, flags=re.IGNORECASE).strip()
+    return cleaned_subject or clean
+
+
+def rewrite_follow_up_query(
+    query: str,
+    history: Optional[List[Dict[str, str]]] = None,
+) -> str:
+    """
+    Rewrite a follow-up query to preserve conversational context for web search retrieval.
+    Resolves pronouns ('it', 'its', 'they', 'this') and conversational ellipsis
+    using the entities from previous conversation turns.
+    """
+    if not query or not query.strip():
+        return ""
+
+    raw_query = query.strip()
+    if not history:
+        return raw_query
+
+    # Find the most recent user query from history
+    last_user_query = ""
+    for turn in reversed(history):
+        if turn.get("role") == "user" and turn.get("content"):
+            last_user_query = turn["content"].strip()
+            break
+
+    if not last_user_query:
+        return raw_query
+
+    prev_subject = extract_core_subject(last_user_query)
+    if not prev_subject or prev_subject.lower() in raw_query.lower():
+        return raw_query
+
+    # Check for pronoun references: it, its, they, them, their, this
+    pronoun_pattern = re.compile(r"\b(it|its|they|them|their|this)\b", re.IGNORECASE)
+    if pronoun_pattern.search(raw_query):
+        # Replace pronouns with the previous subject
+        def repl(m):
+            word = m.group(1).lower()
+            if word == "its":
+                return f"{prev_subject}'s"
+            return prev_subject
+        return pronoun_pattern.sub(repl, raw_query)
+
+    # Check for comparative ellipsis: "Compare with Hubble", "Vs Hubble", "And with Hubble"
+    comp_ellipsis = re.match(r"^(?:compare\s+(?:it\s+)?with|compare\s+to|vs\.?|versus|and\s+with)\s+(.+)$", raw_query, re.IGNORECASE)
+    if comp_ellipsis:
+        target_b = comp_ellipsis.group(1).strip()
+        return f"Compare {prev_subject} and {target_b}"
+
+    # Check for question ellipsis: "What about ...", "How about ...", "What is its ..."
+    ellipsis_match = re.match(r"^(?:what\s+about|how\s+about|and)\s+(.+)$", raw_query, re.IGNORECASE)
+    if ellipsis_match:
+        facet = ellipsis_match.group(1).strip()
+        return f"{prev_subject} {facet}"
+
+    return raw_query

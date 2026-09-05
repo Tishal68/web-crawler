@@ -65,8 +65,10 @@ class TestBingDecode:
 class TestSearchDiscovery:
     """Test search discovery URL resolution, multi-source engines, and SSRF defense."""
 
+    @patch("requests.post")
     @patch("requests.get")
-    def test_bing_search_discovery(self, mock_get):
+    def test_bing_search_discovery(self, mock_get, mock_post):
+        mock_post.return_value = MagicMock(status_code=500)
         bing_resp = MagicMock()
         bing_resp.status_code = 200
         bing_resp.text = """

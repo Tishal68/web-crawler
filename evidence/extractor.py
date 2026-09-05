@@ -12,7 +12,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from .models import EvidencePassage, ExtractedPageEvidence
-from crawler.url_utils import get_domain
+from crawler.url_utils import get_domain, safe_http_get
 from search.source_quality import classify_source
 
 # Stopword sets for lightweight language detection
@@ -216,6 +216,7 @@ class EvidenceExtractor:
         title: str = "",
         snippet: str = "",
         target_language: Optional[str] = "en",
+        filter_foreign_language: bool = False,
     ) -> ExtractedPageEvidence:
         """
         Parse HTML and extract clean, informative text passages with structural metadata.
@@ -326,10 +327,9 @@ class EvidenceExtractor:
             if is_low_information(cleaned_txt):
                 continue
 
-            # Language detection and filtering
+            # Language detection and tagging
             passage_lang = detect_language(cleaned_txt)
-            if target_language and passage_lang != target_language:
-                # Exclude foreign language passages when target language is specified
+            if filter_foreign_language and target_language and passage_lang != target_language:
                 continue
 
             # Deduplicate similar passages
@@ -354,18 +354,17 @@ class EvidenceExtractor:
         # Fallback if no block paragraphs extracted
         if not passages and snippet:
             snip_lang = detect_language(snippet)
-            if not target_language or snip_lang == target_language:
-                passages.append(EvidencePassage(
-                    text=snippet,
-                    source_url=url,
-                    source_domain=dom,
-                    source_title=title,
-                    heading_context="Search Snippet",
-                    published_date=published_date,
-                    source_type=source_type,
-                    passage_id=f"{dom}_snip",
-                    language=snip_lang,
-                ))
+            passages.append(EvidencePassage(
+                text=snippet,
+                source_url=url,
+                source_domain=dom,
+                source_title=title,
+                heading_context="Search Snippet",
+                published_date=published_date,
+                source_type=source_type,
+                passage_id=f"{dom}_snip",
+                language=snip_lang,
+            ))
 
         return ExtractedPageEvidence(
             url=url,
@@ -384,67 +383,55 @@ class EvidenceExtractor:
         title: str = "",
         snippet: str = "",
         target_language: Optional[str] = "en",
+        filter_foreign_language: bool = False,
     ) -> ExtractedPageEvidence:
-        """Fetch URL over HTTP and extract structured evidence."""
+        """Fetch URL over HTTP and extract structured evidence with full SSRF protection."""
         dom = get_domain(url)
         source_type = classify_source(url, title).value
 
-        try:
-            resp = self.session.get(url, timeout=self.timeout, allow_redirects=True)
-            if resp.status_code == 200:
-                content_type = resp.headers.get("Content-Type", "").lower()
-                if "text/html" in content_type or "application/xhtml" in content_type or not content_type:
-                    return self.extract_from_html(
-                        html=resp.text,
-                        url=url,
-                        title=title,
-                        snippet=snippet,
-                        target_language=target_language,
-                    )
-            # Non-200 or non-HTML: fallback with search snippet
-            fallback_passage = EvidencePassage(
-                text=snippet,
-                source_url=url,
-                source_domain=dom,
-                source_title=title or dom,
-                heading_context="Search Snippet",
-                source_type=source_type,
-                passage_id=f"{dom}_snip",
-                language=detect_language(snippet) if snippet else "en",
-            ) if snippet else None
+        resp, err = safe_http_get(
+            url,
+            session=self.session,
+            timeout=self.timeout,
+            max_redirects=5,
+            max_bytes=2 * 1024 * 1024,
+        )
 
-            return ExtractedPageEvidence(
-                url=url,
-                title=title or dom,
-                domain=dom,
-                source_type=source_type,
-                passages=[fallback_passage] if fallback_passage else [],
-                top_passage=fallback_passage,
-                fetch_success=False,
-                error_message=f"HTTP {resp.status_code}",
-            )
-        except Exception as e:
-            fallback_passage = EvidencePassage(
-                text=snippet,
-                source_url=url,
-                source_domain=dom,
-                source_title=title or dom,
-                heading_context="Search Snippet",
-                source_type=source_type,
-                passage_id=f"{dom}_snip",
-                language=detect_language(snippet) if snippet else "en",
-            ) if snippet else None
+        if resp and resp.status_code == 200:
+            content_type = resp.headers.get("Content-Type", "").lower()
+            if "text/html" in content_type or "application/xhtml" in content_type or not content_type:
+                return self.extract_from_html(
+                    html=resp.text,
+                    url=resp.url,
+                    title=title,
+                    snippet=snippet,
+                    target_language=target_language,
+                    filter_foreign_language=filter_foreign_language,
+                )
 
-            return ExtractedPageEvidence(
-                url=url,
-                title=title or dom,
-                domain=dom,
-                source_type=source_type,
-                passages=[fallback_passage] if fallback_passage else [],
-                top_passage=fallback_passage,
-                fetch_success=False,
-                error_message=str(e),
-            )
+        # Fallback with search snippet if HTTP request failed, was blocked, or returned non-HTML
+        fallback_passage = EvidencePassage(
+            text=snippet,
+            source_url=url,
+            source_domain=dom,
+            source_title=title or dom,
+            heading_context="Search Snippet",
+            source_type=source_type,
+            passage_id=f"{dom}_snip",
+            language=detect_language(snippet) if snippet else "en",
+        ) if snippet else None
+
+        error_msg = err or (f"HTTP {resp.status_code}" if resp else "Fetch failed")
+        return ExtractedPageEvidence(
+            url=url,
+            title=title or dom,
+            domain=dom,
+            source_type=source_type,
+            passages=[fallback_passage] if fallback_passage else [],
+            top_passage=fallback_passage,
+            fetch_success=False,
+            error_message=error_msg,
+        )
 
     def extract_from_search_results(
         self,

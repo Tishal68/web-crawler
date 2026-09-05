@@ -11,7 +11,7 @@ from typing import List, Dict, Any, Optional, Callable
 from .provider import SearchProvider, SearchResult, SearchResultSet
 from .google_provider import GoogleSearchProvider
 from .multi_provider import MultiEngineSearchProvider
-from .query import QueryAnalyzer, QueryAnalysis
+from .query import QueryAnalyzer, QueryAnalysis, QueryComplexity, rewrite_follow_up_query
 from .ranking import rank_search_results
 from .cache import SearchCache
 from evidence.extractor import EvidenceExtractor
@@ -22,6 +22,7 @@ from evidence.confidence import calculate_confidence
 from evidence.coverage import cluster_evidence_by_facets, EvidenceCoverageReport
 from answer.generator import GroundedAnswer, AnswerGenerator
 from crawler.database import CrawlDatabase
+from ai import BaseLLMProvider
 
 
 @dataclass
@@ -63,6 +64,7 @@ class SearchPipeline:
         cache: Optional[SearchCache] = None,
         db: Optional[CrawlDatabase] = None,
         timeout: float = 6.0,
+        ai_provider: Optional[BaseLLMProvider] = None,
     ):
         self.cache = cache or SearchCache(default_ttl_seconds=1800)
         self.db = db
@@ -73,7 +75,7 @@ class SearchPipeline:
         self.multi_provider = MultiEngineSearchProvider()
         self.evidence_extractor = EvidenceExtractor(timeout=self.timeout)
         self.verifier = EvidenceVerifier()
-        self.answer_generator = AnswerGenerator()
+        self.answer_generator = AnswerGenerator(llm_provider=ai_provider)
 
     def get_preferred_provider(self, requested: str = "auto") -> SearchProvider:
         """Select appropriate provider based on user request or availability."""
@@ -96,6 +98,8 @@ class SearchPipeline:
         num_sources: int = 8,
         provider_preference: str = "auto",
         progress_callback: Optional[Callable[[str, float], None]] = None,
+        conversation_history: Optional[List[Dict[str, str]]] = None,
+        target_language: str = "en",
     ) -> SearchPipelineResult:
         """Execute end-to-end search pipeline."""
         start_time = time.time()
@@ -107,22 +111,26 @@ class SearchPipeline:
                 except Exception:
                     pass
 
-        # 1. Query Understanding
+        # 1. Query Understanding & Context Resolution
         _update("Analyzing search query & intent...", 0.10)
-        analysis = self.query_analyzer.analyze(query)
+        search_target = query
+        if conversation_history:
+            search_target = rewrite_follow_up_query(query, conversation_history)
+
+        analysis = self.query_analyzer.analyze(search_target)
 
         # 2. Select and query search provider
         provider = self.get_preferred_provider(provider_preference)
         _update(f"Searching web via {provider.provider_name}...", 0.25)
 
         # Check Cache
-        cached_set = self.cache.get(query, provider.provider_name, num_sources)
+        cached_set = self.cache.get(search_target, provider.provider_name, num_sources)
         if cached_set:
             result_set = cached_set
         else:
             # Fetch candidate results (extra buffer to allow ranking & diversity filtering)
             fetch_count = min(20, num_sources + 5)
-            result_set = provider.search(query, num_results=fetch_count)
+            result_set = provider.search(search_target, num_results=fetch_count)
 
             # Multi-angle query discovery for complex multi-facet queries
             if getattr(analysis, "facets", None) and len(analysis.facets) > 1:
@@ -175,6 +183,39 @@ class SearchPipeline:
             facets=getattr(analysis, "facets", []),
         )
 
+        # Iterative Deep Research Loop for complex multi-facet topics with uncovered facets
+        is_complex = getattr(analysis, "complexity", None) == QueryComplexity.COMPLEX
+        if is_complex and coverage and coverage.unverified_requirements:
+            uncovered_facet = next(
+                (f for f in getattr(analysis, "facets", []) if f.title in coverage.unverified_requirements and f.search_query),
+                None,
+            )
+            if uncovered_facet:
+                _update(f"Deep Research Loop: targeted retrieval for '{uncovered_facet.title}'...", 0.80)
+                try:
+                    target_res = provider.search(uncovered_facet.search_query, num_results=3)
+                    existing_urls = {p.url for p in extracted_pages}
+                    new_candidates = [r for r in target_res.results if r.url not in existing_urls]
+                    if new_candidates:
+                        new_pages = self.evidence_extractor.extract_from_search_results(
+                            results=new_candidates[:2],
+                            max_workers=min(2, len(new_candidates)),
+                        )
+                        for np in new_pages:
+                            extracted_pages.append(np)
+                            all_passages.extend(np.passages)
+                        top_passages = rank_and_filter_passages(
+                            passages=all_passages,
+                            query_analysis=analysis,
+                            max_passages=15,
+                        )
+                        coverage = cluster_evidence_by_facets(
+                            passages=all_passages if len(all_passages) < 80 else top_passages,
+                            facets=getattr(analysis, "facets", []),
+                        )
+                except Exception:
+                    pass
+
         # 6. Verification, Corroboration & Contradiction Detection
         _update("Cross-checking sources and verifying facts...", 0.85)
         verification = self.verifier.verify(
@@ -200,6 +241,8 @@ class SearchPipeline:
             verification_summary=verification,
             confidence_report=confidence,
             coverage_report=coverage,
+            history=conversation_history,
+            target_language=target_language,
         )
 
         total_elapsed = time.time() - start_time

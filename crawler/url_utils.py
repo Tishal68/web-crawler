@@ -8,7 +8,8 @@ import posixpath
 import re
 import ipaddress
 import socket
-from typing import Optional, Tuple, Any, Union
+from typing import Optional, Tuple, Any, Union, Dict
+import requests
 
 # Common binary and non-HTML media extensions to skip crawling
 BINARY_EXTENSIONS = {
@@ -422,3 +423,126 @@ def sanitize_dataframe_for_csv(df: Any) -> Any:
         return df_clean
     except Exception:
         return df
+
+
+class SafeFetchResponse:
+    """Safe response wrapper containing verified response data."""
+    def __init__(
+        self,
+        status_code: int,
+        text: str,
+        content: bytes,
+        headers: Dict[str, str],
+        url: str,
+    ):
+        self.status_code = status_code
+        self.text = text
+        self.content = content
+        self.headers = headers
+        self.url = url
+
+
+def safe_http_get(
+    url: str,
+    session: Optional[requests.Session] = None,
+    timeout: float = 8.0,
+    max_redirects: int = 5,
+    max_bytes: int = 2 * 1024 * 1024,
+    headers: Optional[Dict[str, str]] = None,
+) -> Tuple[Optional[SafeFetchResponse], Optional[str]]:
+    """
+    Safely fetch a URL over HTTP/HTTPS with end-to-end SSRF protection:
+    - Pre-validates every destination host against private, loopback, and metadata IPs before connecting.
+    - Resolves DNS and inspects all returned A/AAAA records.
+    - Disables uninspected redirects (allow_redirects=False) and verifies each redirect hop explicitly.
+    - Caps redirect depth to prevent redirect loops.
+    - Streams response with max_bytes limit (default 2MB) to prevent memory exhaustion (DoS).
+    - Preserves TLS certificate validation.
+
+    Returns:
+        (SafeFetchResponse, None) on success
+        (None, error_message) on failure or security block
+    """
+    if not is_valid_url(url):
+        return None, "Invalid URL format or unsupported scheme"
+
+    req_headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+    if headers:
+        req_headers.update(headers)
+
+    client = session or requests.Session()
+    current_url = url
+    hops = 0
+
+    while True:
+        # Pre-connection SSRF inspection with DNS resolution
+        is_safe, ssrf_err = is_safe_target_url(current_url, resolve_dns=True)
+        if not is_safe:
+            return None, f"Security policy blocked target: {ssrf_err}"
+
+        try:
+            resp = client.get(
+                current_url,
+                timeout=timeout,
+                headers=req_headers,
+                allow_redirects=False,
+                stream=True,
+                verify=True,
+            )
+        except requests.exceptions.SSLError as e:
+            return None, f"TLS verification failure: {e}"
+        except requests.exceptions.Timeout:
+            return None, f"Connection timed out after {timeout} seconds"
+        except requests.RequestException as e:
+            return None, f"Network request failed: {e}"
+
+        # Handle HTTP redirects explicitly
+        if resp.is_redirect or resp.status_code in (301, 302, 303, 307, 308):
+            hops += 1
+            if hops > max_redirects:
+                resp.close()
+                return None, f"Exceeded maximum redirect limit of {max_redirects} hops"
+
+            location = resp.headers.get("Location")
+            resp.close()
+            if not location:
+                return None, "Redirect response missing Location header"
+
+            next_url = urljoin(current_url, location.strip())
+            current_url = next_url
+            continue
+
+        # Stream body with byte limit
+        try:
+            chunks = []
+            total_size = 0
+            for chunk in resp.iter_content(chunk_size=16384):
+                total_size += len(chunk)
+                if total_size > max_bytes:
+                    resp.close()
+                    return None, f"Content exceeded maximum allowed size of {max_bytes} bytes"
+                chunks.append(chunk)
+
+            raw_bytes = b"".join(chunks)
+            encoding = resp.encoding or "utf-8"
+            try:
+                text_content = raw_bytes.decode(encoding, errors="replace")
+            except (LookupError, TypeError):
+                text_content = raw_bytes.decode("utf-8", errors="replace")
+
+            return SafeFetchResponse(
+                status_code=resp.status_code,
+                text=text_content,
+                content=raw_bytes,
+                headers=dict(resp.headers),
+                url=current_url,
+            ), None
+        except Exception as e:
+            return None, f"Error streaming response body: {e}"
+        finally:
+            resp.close()
+

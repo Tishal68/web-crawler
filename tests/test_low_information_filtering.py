@@ -53,10 +53,37 @@ def test_extractor_filters_foreign_passages_when_target_is_english():
       </body>
     </html>
     """
-    ev = extractor.extract_from_html(html, url="https://example.org/telescope", target_language="en")
+    ev = extractor.extract_from_html(
+        html,
+        url="https://example.org/telescope",
+        target_language="en",
+        filter_foreign_language=True,
+    )
 
-    # Only English passage should be retained
+    # Only English passage should be retained when filtering is explicitly requested
     assert len(ev.passages) == 1
     assert "infrared astronomy" in ev.passages[0].text
     assert "orbita alrededor" not in ev.passages[0].text
+
+
+def test_extractor_preserves_multilingual_passages_by_default():
+    extractor = EvidenceExtractor()
+    html = """
+    <html>
+      <body>
+        <main>
+          <h1>Observaciones del Telescopio</h1>
+          <p>The James Webb Space Telescope conducts infrared astronomy with four high-sensitivity scientific instruments.</p>
+          <p>El telescopio espacial James Webb orbita alrededor del punto de Lagrange L2 a un millón y medio de kilómetros de la Tierra.</p>
+        </main>
+      </body>
+    </html>
+    """
+    ev = extractor.extract_from_html(html, url="https://example.org/telescope", target_language="en")
+
+    # Authoritative multilingual passages should be preserved with language tags
+    assert len(ev.passages) == 2
+    languages = {p.language for p in ev.passages}
+    assert "en" in languages
+    assert "es" in languages
 
