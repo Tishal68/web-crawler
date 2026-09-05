@@ -67,6 +67,30 @@ class TestCliArgumentParser:
         assert args.no_table is True
         assert args.no_db is True
 
+    def test_search_and_minimal_arguments(self):
+        parser = build_parser()
+        args = parser.parse_args([
+            "machine learning models",
+            "--keyword", "neural",
+            "--quiet",
+            "--json",
+        ])
+        assert args.target == "machine learning models"
+        assert args.keyword == "neural"
+        assert args.quiet is True
+        assert args.json is True
+
+    def test_query_flag_and_minimal_alias(self):
+        parser = build_parser()
+        args = parser.parse_args([
+            "--query", "deep learning",
+            "-k", "transformer",
+            "--minimal",
+        ])
+        assert args.query == "deep learning"
+        assert args.keyword == "transformer"
+        assert args.quiet is True
+
 
 class TestPromptHelpers:
     def test_prompt_bool_parsing(self):
@@ -278,3 +302,178 @@ class TestCliExecution:
         # Invalid export extension
         assert main(["--url", "https://example.com", "--output", "bad_file.txt"]) == 1
         assert main(["--url", "https://example.com", "--output", "binary.exe"]) == 1
+
+    @patch("cli.runner.WebCrawler")
+    def test_cli_quiet_minimal_mode(self, mock_crawler_class, capsys):
+        mock_crawler = MagicMock()
+        mock_crawler_class.return_value = mock_crawler
+        page = PageResult(
+            url="https://example.com",
+            title="Mock Home",
+            depth=0,
+            status_code=200,
+            word_count=150,
+            match_count=2,
+            total_links=5,
+            unique_links=5,
+            internal_links_count=5,
+            external_links_count=0,
+            response_time=0.1,
+            domain="example.com",
+            text_snippet="A mock page",
+            content_type="text/html",
+            timestamp="2026-09-05T10:00:00",
+        )
+        mock_crawler.page_results = [page]
+        mock_crawler.failures = []
+        mock_crawler.discovered_urls = {"https://example.com"}
+
+        summary = CrawlSessionSummary(
+            session_id="mock_session",
+            start_url="https://example.com",
+            max_depth=1,
+            max_pages=1,
+            start_time="2026-09-05T10:00:00",
+            end_time="2026-09-05T10:00:01",
+            elapsed_seconds=0.5,
+            pages_crawled=1,
+            discovered_urls_count=5,
+            failed_urls_count=0,
+            total_internal_links=5,
+            total_external_links=0,
+            stay_on_domain=True,
+            max_depth_reached=0,
+        )
+
+        def mock_stream(cfg):
+            yield CrawlProgressEvent(
+                event_type="success",
+                current_url="https://example.com",
+                current_depth=0,
+                pages_crawled=1,
+                discovered_count=5,
+                failed_count=0,
+                message="Crawled mock",
+                page_result=page,
+            )
+            return summary
+
+        mock_crawler.crawl_stream.side_effect = mock_stream
+
+        exit_code = main(["https://example.com", "--quiet", "--no-db", "--no-color"])
+        assert exit_code == 0
+        captured = capsys.readouterr().out
+        assert "[200] D0 https://example.com" in captured
+        assert "[DONE] Finished in" in captured
+        # Ensure ASCII visualization blocks are omitted
+        assert "+---" not in captured
+        assert "WEB CRAWLER ANALYTICS" not in captured
+
+    @patch("cli.runner.WebCrawler")
+    def test_cli_json_mode(self, mock_crawler_class, capsys):
+        mock_crawler = MagicMock()
+        mock_crawler_class.return_value = mock_crawler
+        page = PageResult(
+            url="https://example.com",
+            title="Mock Home",
+            depth=0,
+            status_code=200,
+            word_count=50,
+            match_count=1,
+            total_links=2,
+            unique_links=2,
+            internal_links_count=2,
+            external_links_count=0,
+            response_time=0.1,
+            domain="example.com",
+            text_snippet="A mock page",
+            content_type="text/html",
+            timestamp="2026-09-05T10:00:00",
+        )
+        mock_crawler.page_results = [page]
+        mock_crawler.failures = []
+        mock_crawler.discovered_urls = {"https://example.com"}
+
+        summary = CrawlSessionSummary(
+            session_id="mock_json_session",
+            start_url="https://example.com",
+            max_depth=1,
+            max_pages=1,
+            start_time="2026-09-05T10:00:00",
+            end_time="2026-09-05T10:00:01",
+            elapsed_seconds=0.2,
+            pages_crawled=1,
+            discovered_urls_count=2,
+            failed_urls_count=0,
+            total_internal_links=2,
+            total_external_links=0,
+            stay_on_domain=True,
+            max_depth_reached=0,
+        )
+
+        def mock_stream(cfg):
+            yield CrawlProgressEvent(
+                event_type="success",
+                current_url="https://example.com",
+                current_depth=0,
+                pages_crawled=1,
+                discovered_count=2,
+                failed_count=0,
+                message="Crawled mock",
+                page_result=page,
+            )
+            return summary
+
+        mock_crawler.crawl_stream.side_effect = mock_stream
+
+        exit_code = main(["https://example.com", "--json", "--no-db"])
+        assert exit_code == 0
+        captured = capsys.readouterr().out.strip()
+        data = json.loads(captured)
+        assert "summary" in data
+        assert "pages" in data
+        assert len(data["pages"]) == 1
+        assert data["pages"][0]["URL"] == "https://example.com"
+
+    @patch("cli.runner.WebCrawler")
+    def test_cli_search_query_positional(self, mock_crawler_class):
+        mock_crawler = MagicMock()
+        mock_crawler_class.return_value = mock_crawler
+        mock_crawler.page_results = []
+        mock_crawler.failures = []
+        mock_crawler.discovered_urls = set()
+
+        def mock_stream(cfg):
+            assert cfg.search_query == "artificial intelligence neural networks"
+            assert cfg.stay_on_domain is False
+            yield CrawlProgressEvent(
+                event_type="searching",
+                current_url="artificial intelligence neural networks",
+                current_depth=0,
+                pages_crawled=0,
+                discovered_count=0,
+                failed_count=0,
+                message="Searching",
+            )
+            return CrawlSessionSummary(
+                session_id="mock_s",
+                start_url="artificial intelligence neural networks",
+                max_depth=1,
+                max_pages=1,
+                start_time="",
+                end_time="",
+                elapsed_seconds=0.1,
+                pages_crawled=0,
+                discovered_urls_count=0,
+                failed_urls_count=0,
+                total_internal_links=0,
+                total_external_links=0,
+                stay_on_domain=False,
+                max_depth_reached=0,
+                search_query="artificial intelligence neural networks",
+            )
+
+        mock_crawler.crawl_stream.side_effect = mock_stream
+
+        exit_code = main(["artificial intelligence neural networks", "--quiet", "--no-db"])
+        assert exit_code == 0

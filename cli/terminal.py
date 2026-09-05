@@ -19,6 +19,7 @@ class ColorManager:
     _GREEN = "\033[92m"
     _YELLOW = "\033[93m"
     _BLUE = "\033[94m"
+    _MAGENTA = "\033[95m"
     _CYAN = "\033[96m"
     _WHITE = "\033[97m"
 
@@ -51,6 +52,9 @@ class ColorManager:
 
     def blue(self, text: str) -> str:
         return f"{self._BLUE}{text}{self._RESET}" if self.enabled else text
+
+    def magenta(self, text: str) -> str:
+        return f"{self._MAGENTA}{text}{self._RESET}" if self.enabled else text
 
     def cyan(self, text: str) -> str:
         return f"{self._CYAN}{text}{self._RESET}" if self.enabled else text

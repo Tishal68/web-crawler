@@ -43,6 +43,12 @@ def format_config_box(
     lines = [
         colors.cyan("[CONFIGURATION]"),
         f"  Target URL     : {colors.bold(config.start_url)}",
+    ]
+    if config.search_query:
+        lines.append(f"  Search Query   : {colors.magenta(config.search_query)}")
+    if config.keyword_filter:
+        lines.append(f"  Keyword Filter : {colors.yellow(config.keyword_filter)}")
+    lines.extend([
         f"  Maximum Depth  : {config.max_depth}",
         f"  Maximum Pages  : {config.max_pages}",
         f"  Timeout        : {config.timeout}s",
@@ -53,20 +59,25 @@ def format_config_box(
         "=" * DIVIDER_WIDTH,
         colors.green("CRAWL STARTED"),
         "-" * DIVIDER_WIDTH,
-    ]
+    ])
     return "\n".join(lines)
 
 
 def format_page_event(event: CrawlProgressEvent, colors: ColorManager) -> Optional[str]:
     """Format live page event for terminal display."""
-    if event.event_type == "success" and event.page_result:
+    if event.event_type == "searching":
+        return colors.magenta(f"🔍 [SEARCH] Resolving seed targets across internet for: '{event.current_url}'...")
+
+    elif event.event_type == "success" and event.page_result:
         p = event.page_result
         tag = colors.green("[OK]")
         title_disp = truncate(p.title, 40)
         url_disp = truncate(p.url, 60)
+        words_str = f" | Words: {p.word_count}"
+        match_str = f" | Matches: {p.match_count}" if p.match_count > 0 else ""
         lines = [
             f"[DEPTH {p.depth}] {tag} {colors.bold(url_disp)}",
-            f"  Title: {title_disp} | Status: {p.status_code} | Links: {p.unique_links} (Int: {p.internal_links_count}, Ext: {p.external_links_count}) | Latency: {p.response_time:.3f}s",
+            f"  Title: {title_disp} | Status: {p.status_code} | Links: {p.unique_links}{words_str}{match_str} | Latency: {p.response_time:.3f}s",
         ]
         return "\n".join(lines)
 
