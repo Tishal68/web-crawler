@@ -186,7 +186,6 @@ with st.expander("⚙️ Traversal Parameters & Politeness Policies", expanded=F
         max_depth = st.number_input(
             "Max Traversal Depth",
             min_value=0,
-            max_value=5,
             step=1,
             key="input_max_depth",
         )
