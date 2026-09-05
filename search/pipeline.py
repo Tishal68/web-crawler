@@ -19,6 +19,7 @@ from evidence.models import ExtractedPageEvidence, EvidencePassage, ConfidenceRe
 from evidence.relevance import rank_and_filter_passages
 from evidence.verifier import EvidenceVerifier
 from evidence.confidence import calculate_confidence
+from evidence.coverage import cluster_evidence_by_facets, EvidenceCoverageReport
 from answer.generator import GroundedAnswer, AnswerGenerator
 from crawler.database import CrawlDatabase
 
@@ -34,6 +35,7 @@ class SearchPipelineResult:
     top_passages: List[EvidencePassage] = field(default_factory=list)
     verification: Dict[str, Any] = field(default_factory=dict)
     confidence: Optional[ConfidenceReport] = None
+    coverage: Optional[EvidenceCoverageReport] = None
     answer: Optional[GroundedAnswer] = None
     total_elapsed: float = 0.0
 
@@ -46,9 +48,11 @@ class SearchPipelineResult:
             "extracted_evidence": [e.to_dict() for e in self.extracted_evidence],
             "top_passages": [p.to_dict() for p in self.top_passages],
             "confidence": self.confidence.to_dict() if self.confidence else None,
+            "coverage": self.coverage.to_dict() if self.coverage else None,
             "answer": self.answer.to_dict() if self.answer else None,
             "total_elapsed": round(self.total_elapsed, 3),
         }
+
 
 
 class SearchPipeline:
@@ -119,6 +123,21 @@ class SearchPipeline:
             # Fetch candidate results (extra buffer to allow ranking & diversity filtering)
             fetch_count = min(20, num_sources + 5)
             result_set = provider.search(query, num_results=fetch_count)
+
+            # Multi-angle query discovery for complex multi-facet queries
+            if getattr(analysis, "facets", None) and len(analysis.facets) > 1:
+                seen_urls = {r.url for r in result_set.results}
+                for facet in analysis.facets[:3]:
+                    if facet.search_query and facet.search_query.strip().lower() != query.strip().lower():
+                        try:
+                            f_res = provider.search(facet.search_query, num_results=3)
+                            for r in f_res.results:
+                                if r.url not in seen_urls:
+                                    seen_urls.add(r.url)
+                                    result_set.results.append(r)
+                        except Exception:
+                            pass
+
             self.cache.set(query, provider.provider_name, result_set, num_results=num_sources)
 
         # 3. Multi-factor Result Ranking
@@ -137,8 +156,9 @@ class SearchPipeline:
             max_workers=min(4, max(1, len(ranked))),
         )
 
-        # 5. Extract & Rank Structured Passages
-        _update("Extracting relevant passages answering the query...", 0.75)
+
+        # 5. Extract & Rank Structured Passages with Facet Clustering
+        _update("Extracting relevant passages and mapping topic facets...", 0.75)
         all_passages: List[EvidencePassage] = []
         for page in extracted_pages:
             all_passages.extend(page.passages)
@@ -146,7 +166,13 @@ class SearchPipeline:
         top_passages = rank_and_filter_passages(
             passages=all_passages,
             query_analysis=analysis,
-            max_passages=10,
+            max_passages=12,
+        )
+
+        # Cluster evidence across decomposed query facets
+        coverage = cluster_evidence_by_facets(
+            passages=all_passages if len(all_passages) < 60 else top_passages,
+            facets=getattr(analysis, "facets", []),
         )
 
         # 6. Verification, Corroboration & Contradiction Detection
@@ -173,6 +199,7 @@ class SearchPipeline:
             passages=top_passages,
             verification_summary=verification,
             confidence_report=confidence,
+            coverage_report=coverage,
         )
 
         total_elapsed = time.time() - start_time
@@ -193,6 +220,7 @@ class SearchPipeline:
                     session_data={
                         "analysis": analysis.to_dict(),
                         "ranked_urls": [r.url for r in ranked],
+                        "coverage": coverage.to_dict() if coverage else None,
                         "total_elapsed": round(total_elapsed, 3),
                     },
                 )
@@ -208,6 +236,8 @@ class SearchPipeline:
             top_passages=top_passages,
             verification=verification,
             confidence=confidence,
+            coverage=coverage,
             answer=answer,
             total_elapsed=total_elapsed,
         )
+

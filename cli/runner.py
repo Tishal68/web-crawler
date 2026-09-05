@@ -219,16 +219,30 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(colors.dim(f"Synthesized across {len(res.ranked_results)} sources and {conf.independent_sources_count} independent domain(s).\n"))
             print(colors.bold("🎯 DIRECT ANSWER:"))
             print(ans.direct_answer + "\n")
+            if ans.structured_sections:
+                print(colors.cyan("🔬 IN-DEPTH RESEARCH & THEMATIC SYNTHESIS:"))
+                for sec in ans.structured_sections:
+                    print(colors.bold(f"  ■ {sec['title']}"))
+                    print(f"    {sec['content']}\n")
+
             if res.verification.get("contradictions"):
                 print(colors.red("⚠️ SOURCE DISAGREEMENTS DETECTED:"))
                 for c in res.verification["contradictions"]:
                     print(colors.yellow(f"  - {c.topic_or_entity}: {c.source_a_domain} vs {c.source_b_domain}"))
                     print(colors.dim(f"    {c.explanation}\n"))
+
             if ans.key_findings:
                 print(colors.cyan("🔍 KEY FINDINGS & EVIDENCE:"))
                 for f in ans.key_findings:
                     print(f"  • {f}")
                 print()
+
+            if ans.follow_up_questions:
+                print(colors.yellow("💡 RECOMMENDED FOLLOW-UP RESEARCH:"))
+                for q in ans.follow_up_questions:
+                    print(f"  • {q}")
+                print()
+
             if ans.citations:
                 print(colors.bold("📚 VERIFIED SOURCES:"))
                 for c in ans.citations:
@@ -236,12 +250,16 @@ def main(argv: Optional[List[str]] = None) -> int:
                     print(f"  [{c.index}] {c.title} - {c.url}")
                     print(colors.dim(f"      {c.domain} · {c.source_type}{d_str}"))
                 print()
+
             if ans.caveats:
                 print(colors.dim("ℹ️ GROUNDING NOTES:"))
+                if res.coverage:
+                    print(colors.dim(f"  * Coverage: {res.coverage.covered_facets}/{res.coverage.total_facets} requirements verified across {conf.independent_sources_count} domain(s)."))
                 for cav in ans.caveats:
                     print(colors.dim(f"  * {cav}"))
                 print()
         return 0
+
 
     # Determine configuration (CLI args vs Interactive Prompts)
     if raw_target:

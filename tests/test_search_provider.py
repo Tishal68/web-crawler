@@ -129,6 +129,44 @@ def test_multi_provider_availability():
     assert mp.provider_name == "Multi-Engine Open Web Search"
 
 
+def test_extract_query_stems():
+    from search.multi_provider import extract_query_stems
+    stems = extract_query_stems("James Webb Space Telescope instruments and discoveries")
+    assert "telescope" in stems
+    assert "webb" in stems
+    assert "instrument" in stems
+    assert "discoveri" in stems
+    assert "and" not in stems
+
+
+def test_multi_provider_relevance_filtering():
+    from search.multi_provider import MultiEngineSearchProvider
+    mp = MultiEngineSearchProvider()
+
+    # Mock response with 1 relevant and 1 completely off-target result
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.text = """
+    <html>
+        <body>
+            <li class="b_algo">
+                <h2><a href="https://example.com/relevant">Webb Space Telescope Instruments Overview</a></h2>
+                <div class="b_caption"><p>NASA Webb Space Telescope instruments and discoveries</p></div>
+            </li>
+            <li class="b_algo">
+                <h2><a href="https://example.com/spam">King James Version Online Chapters</a></h2>
+                <div class="b_caption"><p>Read scripture chapters online</p></div>
+            </li>
+        </body>
+    </html>
+    """
+    with patch.object(mp.session, "get", return_value=mock_resp):
+        res_set = mp.search("James Webb Space Telescope instruments", num_results=5)
+        urls = [r.url for r in res_set.results]
+        assert "https://example.com/relevant" in urls
+        assert "https://example.com/spam" not in urls
+
+
 def test_search_cache_ttl_and_stats():
     cache = SearchCache(default_ttl_seconds=1)
     rs = SearchResultSet(query="cache test", provider_name="Dummy", results=[])

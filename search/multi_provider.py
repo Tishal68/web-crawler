@@ -7,7 +7,8 @@ without requiring API keys, ensuring out-of-the-box operation and fallback resil
 import time
 import base64
 import urllib.parse
-from typing import Optional, Dict, Any, List
+import re
+from typing import Optional, Dict, Any, List, Set
 import requests
 from bs4 import BeautifulSoup
 
@@ -28,6 +29,28 @@ def decode_bing_u(u_val: str) -> Optional[str]:
     except Exception:
         pass
     return None
+
+
+STOPWORDS = {
+    "the", "and", "for", "with", "about", "that", "this", "from", "what", "which",
+    "how", "why", "are", "were", "been", "their", "have", "has", "had", "will",
+    "would", "could", "should", "does", "into", "over", "more", "most", "some",
+    "such", "than", "then", "very", "also", "just", "between", "under", "these",
+    "those", "there", "where", "when", "while", "after", "before", "each", "all"
+}
+
+
+def extract_query_stems(text: str) -> Set[str]:
+    """Extract normalized word stems (length >= 3, excluding stopwords) from text."""
+    if not text:
+        return set()
+    words = re.findall(r"\b[a-z0-9]{3,}\b", text.lower())
+    stems = set()
+    for w in words:
+        if w not in STOPWORDS:
+            stem = re.sub(r"(ing|ed|es|s)$", "", w)
+            stems.add(stem if len(stem) >= 3 else w)
+    return stems
 
 
 class MultiEngineSearchProvider(SearchProvider):
@@ -69,7 +92,15 @@ class MultiEngineSearchProvider(SearchProvider):
         domain_counts: Dict[str, int] = {}
         max_per_domain = 2
 
-        def try_add(title: str, url: str, snippet: str, date: Optional[str] = None) -> bool:
+        q_stems = extract_query_stems(clean_query)
+
+        def try_add(
+            title: str,
+            url: str,
+            snippet: str,
+            date: Optional[str] = None,
+            require_relevance: bool = True
+        ) -> bool:
             if not url or url in seen_urls:
                 return False
             norm = normalize_url(url)
@@ -82,6 +113,18 @@ class MultiEngineSearchProvider(SearchProvider):
             dom = get_domain(norm).lower()
             if not dom or any(dom == b or dom.endswith("." + b) for b in self.SEARCH_ENGINE_DOMAINS):
                 return False
+
+            # Strict relevance check against query keywords to eliminate off-target spam or dropped terms
+            if require_relevance and q_stems:
+                cand_text = f"{title} {snippet} {norm}".lower()
+                cand_stems = extract_query_stems(cand_text)
+                overlap = q_stems.intersection(cand_stems)
+                min_overlap = 1 if len(q_stems) <= 2 else 2
+                if len(overlap) < min_overlap:
+                    # Check substring match in title or URL (e.g. acronyms or composite terms)
+                    cand_lower = f"{title} {norm}".lower()
+                    if not any(s in cand_lower for s in q_stems if len(s) >= 4):
+                        return False
 
             # Cap Wikipedia at max 2 entries so web search results remain diverse
             if "wikipedia.org" in dom and domain_counts.get("en.wikipedia.org", 0) >= 2:
@@ -104,9 +147,19 @@ class MultiEngineSearchProvider(SearchProvider):
             return True
 
         # 1. Bing Live Open Web Search
-        if len(results) < num_results:
+        # Query full query, and if query has > 3 words, also query concise core subject
+        queries_to_bing = [clean_query]
+        sig_words = [w for w in clean_query.split() if w.lower() not in STOPWORDS]
+        if len(sig_words) > 3:
+            core_query = " ".join(sig_words[:4])
+            if core_query.lower() != clean_query.lower():
+                queries_to_bing.append(core_query)
+
+        for b_q in queries_to_bing:
+            if len(results) >= num_results:
+                break
             try:
-                bing_url = f"https://www.bing.com/search?q={urllib.parse.quote(clean_query)}&setlang=en-US&cc=US"
+                bing_url = f"https://www.bing.com/search?q={urllib.parse.quote(b_q)}&setlang=en-US&cc=US"
                 headers = {
                     "User-Agent": self.SEARCH_USER_AGENT,
                     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -134,7 +187,6 @@ class MultiEngineSearchProvider(SearchProvider):
                             target_url = href
 
                         if target_url:
-                            # Extract snippet text from li
                             caption_div = li.find("div", class_="b_caption") or li.find("p")
                             snippet_text = caption_div.get_text().strip() if caption_div else ""
                             try_add(title, target_url, snippet_text)
@@ -162,7 +214,7 @@ class MultiEngineSearchProvider(SearchProvider):
             except Exception:
                 pass
 
-        # 3. Wikipedia Full-Text Knowledge API
+        # 3. Wikipedia Full-Text Knowledge API & Primary Source Extlinks Mining
         if len(results) < num_results:
             try:
                 wiki_api = "https://en.wikipedia.org/w/api.php"
@@ -175,15 +227,50 @@ class MultiEngineSearchProvider(SearchProvider):
                 }
                 resp = self.session.get(wiki_api, params=params, headers={"User-Agent": "WebResearchEngine/2.0"}, timeout=self.timeout)
                 if resp.status_code == 200:
+                    wiki_titles = []
                     for item in resp.json().get("query", {}).get("search", []):
                         title = item.get("title")
                         snippet = BeautifulSoup(item.get("snippet", ""), "html.parser").get_text()
                         if title:
                             slug = title.replace(" ", "_")
                             wiki_url = f"https://en.wikipedia.org/wiki/{urllib.parse.quote(slug)}"
-                            try_add(title, wiki_url, snippet)
+                            if try_add(title, wiki_url, snippet):
+                                wiki_titles.append(title)
                             if len(results) >= num_results:
                                 break
+
+                    # Mine high-authority external primary sources referenced by top Wikipedia pages
+                    AUTHORITATIVE_EXT_DOMAINS = (
+                        ".gov", ".edu", "nasa.gov", "esa.int", "stsci.edu",
+                        "webbtelescope.org", "nature.com", "science.org", "arxiv.org",
+                        "nist.gov", "cern.ch", "acm.org", "ieee.org"
+                    )
+                    for w_title in wiki_titles[:2]:
+                        if len(results) >= num_results:
+                            break
+                        try:
+                            ext_params = {
+                                "action": "query",
+                                "prop": "extlinks",
+                                "titles": w_title,
+                                "ellimit": 40,
+                                "format": "json",
+                            }
+                            ext_resp = self.session.get(wiki_api, params=ext_params, headers={"User-Agent": "WebResearchEngine/2.0"}, timeout=self.timeout)
+                            if ext_resp.status_code == 200:
+                                pages = ext_resp.json().get("query", {}).get("pages", {})
+                                for _, pdata in pages.items():
+                                    for el in pdata.get("extlinks", []):
+                                        raw_link = el.get("*", "")
+                                        if raw_link.startswith("//"):
+                                            raw_link = "https:" + raw_link
+                                        if any(dom in raw_link.lower() for dom in AUTHORITATIVE_EXT_DOMAINS):
+                                            link_title = f"{w_title} - Primary Reference ({get_domain(raw_link)})"
+                                            try_add(link_title, raw_link, f"Primary authoritative reference from {w_title}", require_relevance=False)
+                                            if len(results) >= num_results:
+                                                break
+                        except Exception:
+                            pass
             except Exception:
                 pass
 

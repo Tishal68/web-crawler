@@ -1,5 +1,6 @@
 """
 Web evidence extractor: Fetches web pages, extracts metadata, published dates,
+filters low-information/promotional boilerplate and foreign language leakage,
 and extracts clean structured text passages with hierarchical heading context.
 """
 
@@ -14,6 +15,122 @@ from .models import EvidencePassage, ExtractedPageEvidence
 from crawler.url_utils import get_domain
 from search.source_quality import classify_source
 
+# Stopword sets for lightweight language detection
+COMMON_SPANISH_WORDS = {
+    "el", "la", "de", "que", "en", "los", "del", "se", "las", "por", "un", "para",
+    "con", "no", "una", "su", "al", "lo", "como", "mas", "más", "pero", "sus", "le",
+    "ya", "este", "sí", "porque", "esta", "son", "entre", "está", "cuando", "muy",
+    "sin", "sobre", "también", "tambien", "hasta", "hay", "donde", "desde", "todos",
+    "nos", "durante", "uno", "les", "contra", "otros", "ese", "eso", "ante", "ellos",
+    "esto", "antes", "algunos", "unos", "otro", "otras", "otra", "él", "tanto", "esa",
+    "estos", "mucho", "quienes", "nada", "muchos", "cual", "sea", "poco", "ella"
+}
+
+COMMON_FRENCH_WORDS = {
+    "le", "la", "de", "du", "des", "et", "en", "un", "une", "que", "est", "pour",
+    "dans", "sur", "avec", "par", "ce", "ces", "qui", "pas", "sont", "aux", "au",
+    "plus", "il", "elle", "se", "ne", "ont", "mais", "nous", "vous", "ils", "elles",
+    "tout", "tous", "comme", "ou", "faire", "fait"
+}
+
+COMMON_GERMAN_WORDS = {
+    "der", "die", "das", "und", "in", "den", "von", "zu", "dem", "mit", "sich",
+    "des", "auf", "für", "ist", "im", "nicht", "eine", "als", "auch", "es", "an",
+    "werden", "aus", "er", "hat", "dass", "sie", "nach", "wird", "bei", "einer"
+}
+
+PROMOTIONAL_PATTERNS = [
+    r"cookie(s)?\s+(policy|settings|notice|consent)",
+    r"all\s+rights\s+reserved",
+    r"privacy\s+policy",
+    r"terms\s+of\s+(service|use)",
+    r"sign\s+up\s+for\s+(our\s+)?newsletter",
+    r"subscribe\s+to\s+(our\s+)?newsletter",
+    r"subscribe\s+now",
+    r"advertisement",
+    r"please\s+enable\s+javascript",
+    r"skip\s+to\s+(main\s+)?content",
+    r"share\s+.*(facebook|twitter|linkedin|reddit|whatsapp)",
+    r"follow\s+us\s+on\s+(twitter|instagram|facebook|linkedin|youtube)",
+    r"leave\s+a\s+(comment|reply)",
+    r"trending\s+(now|topics|stories)",
+    r"table\s+of\s+contents",
+    r"read\s+more\s+about",
+    r"related\s+(articles|posts|stories|reading)",
+    r"fun\s+facts\s+about",
+    r"trivia\s+and\s+fun\s+facts",
+    r"click\s+here\s+to",
+    r"affiliate\s+links?",
+    r"sponsored\s+content",
+    r"buy\s+now",
+    r"add\s+to\s+cart",
+    r"special\s+offer",
+    r"discount\s+code",
+    r"join\s+our\s+community",
+    r"download\s+the\s+app",
+    r"^credit\s*:",
+    r"^photo\s+credit",
+    r"^image\s+credit",
+    r"^source\s*:",
+    r"image\s+courtesy\s+of",
+    r"photo\s+courtesy\s+of",
+]
+
+
+def detect_language(text: str) -> str:
+    """
+    Lightweight language detector based on distinctive stopword frequency.
+    Returns ISO language code (e.g. 'en', 'es', 'fr', 'de').
+    """
+    if not text:
+        return "en"
+    words = re.findall(r"\b[a-zA-Z\u00C0-\u017F]{2,}\b", text.lower())
+    if len(words) < 5:
+        return "en"
+
+    total_words = len(words)
+    es_matches = sum(1 for w in words if w in COMMON_SPANISH_WORDS)
+    fr_matches = sum(1 for w in words if w in COMMON_FRENCH_WORDS)
+    de_matches = sum(1 for w in words if w in COMMON_GERMAN_WORDS)
+
+    scores = {"es": es_matches, "fr": fr_matches, "de": de_matches}
+    best_lang, best_count = max(scores.items(), key=lambda x: x[1])
+
+    if best_count >= 3 and (best_count / total_words) >= 0.08:
+        return best_lang
+    return "en"
+
+
+
+def is_low_information(text: str) -> bool:
+    """
+    Detects whether a text snippet is promotional fluff, boilerplate,
+    or low-information navigational text that degrades answer synthesis.
+    """
+    if not text:
+        return True
+    lower = text.lower().strip()
+    words = lower.split()
+    if len(words) < 7 or len(text) < 40:
+        return True
+
+    # Check promotional regex patterns
+    for pat in PROMOTIONAL_PATTERNS:
+        if re.search(pat, lower):
+            return True
+
+    # Check alphanumeric ratio (e.g., symbols, prices, or ascii art)
+    alpha_chars = sum(1 for c in text if c.isalpha())
+    if len(text) > 0 and (alpha_chars / len(text)) < 0.55:
+        return True
+
+    # Low lexical diversity (repetitive strings / spam)
+    unique_words = set(words)
+    if len(words) >= 15 and (len(unique_words) / len(words)) < 0.40:
+        return True
+
+    return False
+
 
 class EvidenceExtractor:
     """Extracts structured evidence passages and publication dates from web sources."""
@@ -24,19 +141,8 @@ class EvidenceExtractor:
         "Chrome/124.0.0.0 Safari/537.36 WebSearchEngine/2.0"
     )
 
-    BOILERPLATE_PATTERNS = [
-        r"cookie(s)?\s+(policy|settings|notice|consent)",
-        r"all\s+rights\s+reserved",
-        r"privacy\s+policy",
-        r"terms\s+of\s+(service|use)",
-        r"sign\s+up\s+for\s+(our\s+)?newsletter",
-        r"subscribe\s+to\s+(our\s+)?newsletter",
-        r"advertisement",
-        r"please\s+enable\s+javascript",
-        r"skip\s+to\s+(main\s+)?content",
-    ]
-
     def __init__(self, timeout: float = 6.0):
+
         self.timeout = timeout
         self.session = requests.Session()
         self.session.headers.update({
@@ -100,14 +206,8 @@ class EvidenceExtractor:
         return None
 
     def _is_boilerplate(self, text: str) -> bool:
-        """Check if text snippet is common webpage boilerplate."""
-        lower = text.lower()
-        if len(text.split()) < 4:
-            return True
-        for pattern in self.BOILERPLATE_PATTERNS:
-            if re.search(pattern, lower):
-                return True
-        return False
+        """Check if text snippet is low-information or boilerplate."""
+        return is_low_information(text)
 
     def extract_from_html(
         self,
@@ -115,8 +215,12 @@ class EvidenceExtractor:
         url: str,
         title: str = "",
         snippet: str = "",
+        target_language: Optional[str] = "en",
     ) -> ExtractedPageEvidence:
-        """Parse HTML and extract clean text passages with structural metadata."""
+        """
+        Parse HTML and extract clean, informative text passages with structural metadata.
+        Filters out promotional boilerplate and foreign language passages.
+        """
         dom = get_domain(url)
         source_type = classify_source(url, title).value
 
@@ -132,6 +236,7 @@ class EvidenceExtractor:
                     heading_context="Search Snippet",
                     source_type=source_type,
                     passage_id=f"{dom}_snip",
+                    language=detect_language(snippet),
                 ))
             return ExtractedPageEvidence(
                 url=url,
@@ -171,32 +276,60 @@ class EvidenceExtractor:
         published_date = self.extract_date(soup, html)
 
         # 3. Strip non-content elements
-        for tag in soup(["script", "style", "noscript", "svg", "header", "footer", "nav", "aside", "form"]):
+        for tag in soup(["script", "style", "noscript", "svg", "header", "footer", "nav", "aside", "form", "dialog"]):
             tag.decompose()
 
-        # 4. Extract hierarchical passages
+        # 4. Target Primary Article / Main Content Container
+        content_root = None
+        main_candidates = soup.find_all(["main", "article"])
+        for candidate in main_candidates:
+            if len(candidate.get_text(strip=True)) > 250:
+                content_root = candidate
+                break
+
+        if not content_root:
+            # Check by common id or class names
+            class_id_patterns = re.compile(
+                r"(article-body|post-content|entry-content|mw-parser-output|main-content|story-body|article__body)",
+                re.I
+            )
+            container = soup.find(attrs={"id": class_id_patterns}) or soup.find(attrs={"class": class_id_patterns})
+            if container and len(container.get_text(strip=True)) > 250:
+                content_root = container
+
+        if not content_root:
+            content_root = soup.find("body") or soup
+
+        # 5. Extract hierarchical passages
         passages: List[EvidencePassage] = []
         current_heading = ""
         seen_texts = set()
 
-        body = soup.find("body") or soup
-
-        for elem in body.find_all(["h1", "h2", "h3", "p", "li", "blockquote", "td"]):
+        for elem in content_root.find_all(["h1", "h2", "h3", "p", "li", "blockquote", "td"]):
             tag_name = elem.name.lower()
 
             if tag_name in ("h1", "h2", "h3"):
                 h_text = elem.get_text(separator=" ", strip=True)
-                if h_text and len(h_text) < 120:
+                h_lower = h_text.lower()
+                if h_text and 3 <= len(h_text) < 120 and not any(re.search(pat, h_lower) for pat in PROMOTIONAL_PATTERNS):
                     current_heading = h_text
                 continue
+
 
             raw_txt = elem.get_text(separator=" ", strip=True)
             cleaned_txt = " ".join(raw_txt.split())
 
-            if not cleaned_txt or len(cleaned_txt) < 35:
+            if not cleaned_txt or len(cleaned_txt) < 40:
                 continue
 
-            if self._is_boilerplate(cleaned_txt):
+            # Filter low information / promotional text
+            if is_low_information(cleaned_txt):
+                continue
+
+            # Language detection and filtering
+            passage_lang = detect_language(cleaned_txt)
+            if target_language and passage_lang != target_language:
+                # Exclude foreign language passages when target language is specified
                 continue
 
             # Deduplicate similar passages
@@ -214,21 +347,25 @@ class EvidenceExtractor:
                 published_date=published_date,
                 source_type=source_type,
                 passage_id=f"{dom}_{len(passages) + 1}",
+                language=passage_lang,
             )
             passages.append(passage)
 
-        # If page had no block paragraphs extracted, use snippet fallback
+        # Fallback if no block paragraphs extracted
         if not passages and snippet:
-            passages.append(EvidencePassage(
-                text=snippet,
-                source_url=url,
-                source_domain=dom,
-                source_title=title,
-                heading_context="Search Snippet",
-                published_date=published_date,
-                source_type=source_type,
-                passage_id=f"{dom}_snip",
-            ))
+            snip_lang = detect_language(snippet)
+            if not target_language or snip_lang == target_language:
+                passages.append(EvidencePassage(
+                    text=snippet,
+                    source_url=url,
+                    source_domain=dom,
+                    source_title=title,
+                    heading_context="Search Snippet",
+                    published_date=published_date,
+                    source_type=source_type,
+                    passage_id=f"{dom}_snip",
+                    language=snip_lang,
+                ))
 
         return ExtractedPageEvidence(
             url=url,
@@ -246,6 +383,7 @@ class EvidenceExtractor:
         url: str,
         title: str = "",
         snippet: str = "",
+        target_language: Optional[str] = "en",
     ) -> ExtractedPageEvidence:
         """Fetch URL over HTTP and extract structured evidence."""
         dom = get_domain(url)
@@ -261,6 +399,7 @@ class EvidenceExtractor:
                         url=url,
                         title=title,
                         snippet=snippet,
+                        target_language=target_language,
                     )
             # Non-200 or non-HTML: fallback with search snippet
             fallback_passage = EvidencePassage(
@@ -271,6 +410,7 @@ class EvidenceExtractor:
                 heading_context="Search Snippet",
                 source_type=source_type,
                 passage_id=f"{dom}_snip",
+                language=detect_language(snippet) if snippet else "en",
             ) if snippet else None
 
             return ExtractedPageEvidence(
@@ -292,6 +432,7 @@ class EvidenceExtractor:
                 heading_context="Search Snippet",
                 source_type=source_type,
                 passage_id=f"{dom}_snip",
+                language=detect_language(snippet) if snippet else "en",
             ) if snippet else None
 
             return ExtractedPageEvidence(
@@ -309,6 +450,7 @@ class EvidenceExtractor:
         self,
         results: List[Any],
         max_workers: int = 4,
+        target_language: Optional[str] = "en",
     ) -> List[ExtractedPageEvidence]:
         """Concurrently fetch and extract evidence from a list of SearchResults."""
         evidence_list: List[ExtractedPageEvidence] = []
@@ -322,6 +464,7 @@ class EvidenceExtractor:
                     item.url,
                     item.title,
                     item.snippet,
+                    target_language,
                 ): item
                 for item in results
             }
@@ -337,3 +480,4 @@ class EvidenceExtractor:
         url_order = {item.url: idx for idx, item in enumerate(results)}
         evidence_list.sort(key=lambda x: url_order.get(x.url, 999))
         return evidence_list
+

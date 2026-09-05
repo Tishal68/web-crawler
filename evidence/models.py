@@ -19,6 +19,8 @@ class EvidencePassage:
     published_date: Optional[str] = None
     source_type: str = "General Web Source"
     passage_id: str = ""
+    language: str = "en"
+    facet_id: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -31,6 +33,8 @@ class EvidencePassage:
             "published_date": self.published_date,
             "source_type": self.source_type,
             "passage_id": self.passage_id,
+            "language": self.language,
+            "facet_id": self.facet_id,
         }
 
 

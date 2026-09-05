@@ -84,6 +84,30 @@ def rank_search_results(
                 if year_str in (item.published_date or "") or year_str in title_lower:
                     rel_score += 0.15
 
+            # Primary source boosting (.gov, .edu, official mission/standards institutes)
+            item_dom = get_domain(item.url).lower()
+            if any(item_dom.endswith(tld) for tld in (".gov", ".gov.uk", ".edu", ".edu.au", ".ac.uk")):
+                item.authority_score = min(1.0, item.authority_score + 0.25)
+            elif item_dom in (
+                "nasa.gov", "esa.int", "webbtelescope.org", "stsci.edu",
+                "cern.ch", "eso.org", "nature.com", "science.org",
+                "nist.gov", "ietf.org", "w3.org", "arxiv.org", "python.org"
+            ):
+                item.authority_score = min(1.0, item.authority_score + 0.35)
+
+            # Facet keywords coverage bonus
+            if hasattr(query_analysis, "facets") and query_analysis.facets:
+                matched_facets = 0
+                for facet in query_analysis.facets:
+                    for f_kw in facet.keywords:
+                        if f_kw.lower() in title_lower or f_kw.lower() in snippet_lower:
+                            matched_facets += 1
+                            break
+                if matched_facets >= 2:
+                    rel_score += 0.15
+                elif matched_facets == 1:
+                    rel_score += 0.08
+
         item.relevance_score = min(1.0, rel_score)
 
         # Composite score

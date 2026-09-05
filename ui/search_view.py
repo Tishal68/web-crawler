@@ -251,6 +251,80 @@ def render_search_view(pipeline: SearchPipeline, db: CrawlDatabase):
             </div>
         """, unsafe_allow_html=True)
 
+    # 5b. Deep Research & Thematic Synthesis Sections
+    if answer and getattr(answer, "structured_sections", None):
+        st.markdown("""
+            <div style="font-size: 0.76rem; font-weight: 800; letter-spacing: 0.08em; color: #38BDF8; text-transform: uppercase; margin-top: 1.2rem; margin-bottom: 0.6rem;">
+                🔬 IN-DEPTH RESEARCH &amp; THEMATIC SYNTHESIS
+            </div>
+        """, unsafe_allow_html=True)
+        for sec in answer.structured_sections:
+            status_style = {
+                "fully_covered": ("🟢 Corroborated", "#22C55E", "rgba(34, 197, 94, 0.12)"),
+                "partially_covered": ("🟡 Single Source", "#F59E0B", "rgba(245, 158, 11, 0.12)"),
+                "uncovered": ("⚪ Unverified", "#94A3B8", "rgba(148, 163, 184, 0.12)"),
+            }.get(sec.get("status"), ("🟢 Supported", "#38BDF8", "rgba(56, 189, 248, 0.12)"))
+
+            st.markdown(f"""
+                <div class="kpi-card" style="padding: 1rem 1.3rem; margin-bottom: 0.8rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.4rem;">
+                        <div style="font-size: 0.94rem; font-weight: 700; color: #FFFFFF;">
+                            {html.escape(sec['title'])}
+                        </div>
+                        <div>
+                            <span style="background: {status_style[2]}; border: 1px solid {status_style[1]}; color: {status_style[1]}; padding: 0.15rem 0.55rem; border-radius: 4px; font-size: 0.68rem; font-weight: 700;">
+                                {status_style[0]}
+                            </span>
+                        </div>
+                    </div>
+                    <div style="font-size: 0.88rem; color: #E2E8F0; line-height: 1.65;">
+                        {html.escape(sec['content'])}
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+
+    # 5c. Follow-Up Research Prompt Chips
+    follow_ups = getattr(answer, "follow_up_questions", [])
+    if follow_ups:
+        st.markdown("""
+            <div style="font-size: 0.76rem; font-weight: 800; letter-spacing: 0.08em; color: #A78BFA; text-transform: uppercase; margin-top: 1.2rem; margin-bottom: 0.5rem;">
+                💡 SUGGESTED FOLLOW-UP RESEARCH
+            </div>
+        """, unsafe_allow_html=True)
+        f_cols = st.columns(min(len(follow_ups), 4))
+        for f_idx, f_query in enumerate(follow_ups[:4]):
+            with f_cols[f_idx]:
+                if st.button(f"🔍 {f_query}", key=f"btn_follow_up_{f_idx}", use_container_width=True):
+                    st.session_state["search_query_input"] = f_query
+                    st.session_state["trigger_auto_search"] = True
+                    st.rerun()
+
+    # 5d. Coverage Telemetry Expander
+    coverage = getattr(active_res, "coverage", None) or getattr(answer, "coverage_report", None)
+    if coverage and hasattr(coverage, "clusters") and coverage.clusters:
+        with st.expander(f"🧩 Information Coverage Telemetry ({coverage.covered_facets}/{coverage.total_facets} Requirements Verified)", expanded=False):
+            st.markdown(f"""
+                <div style="font-size: 0.82rem; color: #94A3B8; margin-bottom: 0.6rem;">
+                    The research engine decomposed your query into <b>{coverage.total_facets} factual requirements</b>.
+                    Overall verified coverage ratio: <b>{int(coverage.coverage_ratio * 100)}%</b> across {ind_domains} independent domain(s).
+                </div>
+            """, unsafe_allow_html=True)
+            for cl in coverage.clusters:
+                cl_status = "🟢 Fully Corroborated" if cl.status == "fully_covered" else ("🟡 Partially Covered" if cl.status == "partially_covered" else "⚠️ Unverified")
+                doms_str = ", ".join(cl.corroborating_domains) if cl.corroborating_domains else "No sources"
+                st.markdown(f"""
+                    <div style="background: rgba(15, 23, 42, 0.45); border-left: 3px solid #38BDF8; padding: 0.5rem 0.8rem; margin-bottom: 0.4rem; border-radius: 4px;">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.82rem; font-weight: 700; color: #F1F5F9;">
+                            <span>{html.escape(cl.title)}</span>
+                            <span>{cl_status}</span>
+                        </div>
+                        <div style="font-size: 0.72rem; color: #64748B; margin-top: 0.2rem;">
+                            Sources: {html.escape(doms_str)} &bull; {len(cl.passages)} passage(s) extracted
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+
+
     # 6. Contradictions & Disagreements (if any)
     if contradictions:
         st.markdown("""
