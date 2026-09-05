@@ -107,6 +107,24 @@ class CrawlDatabase:
                     cursor.execute("CREATE INDEX IF NOT EXISTS idx_pages_session ON crawled_pages(session_id);")
                     cursor.execute("CREATE INDEX IF NOT EXISTS idx_failures_session ON failed_urls(session_id);")
 
+                    # Search history table for Web Search & Information Retrieval
+                    cursor.execute("""
+                        CREATE TABLE IF NOT EXISTS search_history (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            query TEXT NOT NULL,
+                            timestamp TEXT NOT NULL,
+                            provider_name TEXT,
+                            results_count INTEGER,
+                            direct_answer TEXT,
+                            confidence_badge TEXT,
+                            confidence_score REAL,
+                            has_contradictions INTEGER DEFAULT 0,
+                            citations_json TEXT,
+                            session_data_json TEXT
+                        )
+                    """)
+                    cursor.execute("CREATE INDEX IF NOT EXISTS idx_search_history_time ON search_history(timestamp DESC);")
+
                     # Non-destructive migrations for search query & text mining columns
                     for col_sql in [
                         "ALTER TABLE sessions ADD COLUMN search_query TEXT;",
@@ -301,3 +319,94 @@ class CrawlDatabase:
         except Exception as e:
             logger.error("Failed to delete session %s: %s", session_id, e)
             return False
+
+    def save_search_history(
+        self,
+        query: str,
+        provider_name: str,
+        results_count: int,
+        direct_answer: str,
+        confidence_badge: str,
+        confidence_score: float,
+        has_contradictions: bool,
+        citations: List[Dict[str, Any]],
+        session_data: Optional[Dict[str, Any]] = None,
+    ) -> Optional[int]:
+        """Record a completed web search & evidence retrieval session."""
+        try:
+            import datetime
+            now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            with self._get_connection() as conn:
+                with conn:
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        INSERT INTO search_history (
+                            query, timestamp, provider_name, results_count, direct_answer,
+                            confidence_badge, confidence_score, has_contradictions,
+                            citations_json, session_data_json
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        query,
+                        now_iso,
+                        provider_name,
+                        results_count,
+                        direct_answer,
+                        confidence_badge,
+                        confidence_score,
+                        1 if has_contradictions else 0,
+                        json.dumps(citations),
+                        json.dumps(session_data) if session_data else "{}",
+                    ))
+                    return cursor.lastrowid
+        except Exception as e:
+            logger.error("Failed to save search history for '%s': %s", query, e)
+            return None
+
+    def get_search_history(self, limit: int = 20) -> List[Dict[str, Any]]:
+        """Retrieve recent search sessions ordered by timestamp descending."""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT id, query, timestamp, provider_name, results_count,
+                           direct_answer, confidence_badge, confidence_score,
+                           has_contradictions, citations_json, session_data_json
+                    FROM search_history
+                    ORDER BY timestamp DESC
+                    LIMIT ?
+                """, (limit,))
+                rows = []
+                for row in cursor.fetchall():
+                    item = dict(row)
+                    item["citations"] = json.loads(item.get("citations_json") or "[]")
+                    item["session_data"] = json.loads(item.get("session_data_json") or "{}")
+                    rows.append(item)
+                return rows
+        except Exception as e:
+            logger.error("Failed to retrieve search history: %s", e)
+            return []
+
+    def delete_search_history(self, history_id: int) -> bool:
+        """Delete a single search history record by ID."""
+        try:
+            with self._get_connection() as conn:
+                with conn:
+                    cursor = conn.cursor()
+                    cursor.execute("DELETE FROM search_history WHERE id = ?", (history_id,))
+                return True
+        except Exception as e:
+            logger.error("Failed to delete search history record %s: %s", history_id, e)
+            return False
+
+    def clear_search_history(self) -> bool:
+        """Clear all search history records."""
+        try:
+            with self._get_connection() as conn:
+                with conn:
+                    cursor = conn.cursor()
+                    cursor.execute("DELETE FROM search_history;")
+                return True
+        except Exception as e:
+            logger.error("Failed to clear search history: %s", e)
+            return False
+

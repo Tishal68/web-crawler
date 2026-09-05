@@ -1,39 +1,43 @@
-# Web Crawler Analytics Web Application
+# Web Search Engine & Deep Crawler Analytics
 
-A modern, production-grade **Web Crawler Analytics & Mining Application** built in Python with **Streamlit**, designed for academic Web Mining, Machine Learning, and Information Retrieval contexts.
+A modern, production-grade **Web Search, Evidence-Backed Information Retrieval, and Deep Web Crawler Application** built in Python with **Streamlit**, designed for academic Web Mining, Machine Learning, and Information Retrieval contexts.
 
-The application allows users to supply a seed URL and maximum depth, initiates a Breadth-First Search (BFS) crawl, extracts hyperlinks, avoids redundant and circular visits, tolerates HTTP and network failures gracefully, persists crawl history to SQLite, and provides an interactive visual dashboard with Plotly charts and network graph analysis.
+The application operates in two coordinated modes:
+1. **🌐 Web Search & Evidence Retrieval Engine**: Enter any search query (e.g., *"latest developments in quantum computing"*). The engine searches the public web, discovers relevant sources, fetches pages, extracts structured passages, cross-checks facts across independent root domains, detects factual contradictions, scores explainable confidence ratings (never claiming 100% certainty), and synthesizes grounded answers with strict citation mappings `[1]`, `[2]`.
+2. **🕸️ Deep Web Crawler & Graph Analytics**: Enter any starting URL or query, configure BFS depth and page caps, execute level-synchronous crawling, avoid circular loops, inspect HTTP response telemetry, and explore interactive 2D/3D network topology graphs and Plotly analytics.
 
 ---
 
 ## Table of Contents
 
 1. [Project Overview](#project-overview)
-2. [Key Features](#key-features)
-3. [Technologies Used](#technologies-used)
-4. [Project Architecture](#project-architecture)
+2. [Web Search & Information Retrieval Architecture](#web-search--information-retrieval-architecture)
+3. [Key Features](#key-features)
+4. [Technologies Used](#technologies-used)
 5. [Installation & Setup](#installation--setup)
-6. [Running the Application](#running-the-application)
-7. [Deploying to Streamlit Community Cloud](#deploying-to-streamlit-community-cloud)
-8. [How Crawling Depth Works](#how-crawling-depth-works)
-9. [How Duplicate URLs Are Prevented](#how-duplicate-urls-are-prevented)
-10. [Error Handling & Fault Tolerance](#error-handling--fault-tolerance)
-11. [Database Schema (SQLite)](#database-schema-sqlite)
-12. [Running Tests](#running-tests)
-13. [Ethical & Responsible Web Crawling](#ethical--responsible-web-crawling)
-14. [Limitations & Future Enhancements](#limitations--future-enhancements)
+6. [Running the Application (Web & Terminal)](#running-the-application)
+7. [Configuring Google Custom Search API (Optional)](#configuring-google-custom-search-api-optional)
+8. [Deploying to Streamlit Community Cloud](#deploying-to-streamlit-community-cloud)
+9. [How Crawling Depth Works](#how-crawling-depth-works)
+10. [How Duplicate URLs Are Prevented](#how-duplicate-urls-are-prevented)
+11. [Contradiction Detection & Confidence Assessment](#contradiction-detection--confidence-assessment)
+12. [Database Schema (SQLite)](#database-schema-sqlite)
+13. [Running Tests](#running-tests)
+14. [Ethical & Responsible Web Crawling](#ethical--responsible-web-crawling)
 
 ---
 
 ## Project Overview
 
-In web mining and search engine architecture, web crawlers are fundamental for discovery, indexing, and link analysis. This project satisfies all core academic requirements while offering a clean, modern user experience:
-- **Seed Input**: User-provided starting URL.
-- **Configurable Traversal**: User-specified crawling depth (0 to 5) and page cap.
-- **Graph Traversal**: Strict Queue-based Breadth-First Search (BFS).
-- **Data Mining Metrics**: Page title extraction, status codes, total hyperlinks, unique internal vs. external links, latency, and content-type detection.
-- **Resilience**: Complete immunity to broken links, 4xx/5xx HTTP codes, timeouts, and non-HTML assets.
-- **Interactive UI**: Live streaming status updates without screen flickering, Plotly analytics, deep-dive link inspector, CSV/JSON data export, and SQLite crawl history.
+In web mining and search engine architecture, Information Retrieval systems require moving from simple hyperlink traversal to true web discovery, structured extraction, cross-source verification, and grounded answer synthesis:
+- **Web Search & Discovery**: Multi-engine web search across open indexes (Bing, Algolia Open Web, Wikipedia) with zero configuration, plus official Google Custom Search JSON API integration.
+- **Explainable Quality Classification**: Classifies sources into authoritative tiers (`.gov`, `.edu`, Standards Orgs, Scientific Journals, Primary Sources, Journalism, Specialist, and Community Discussions).
+- **Domain Diversity Constraints**: Enforces root domain diversity limits so single domains do not dominate results.
+- **Passage Extraction & Scoring**: Parses hierarchical headings (H1-H3), extracts coherent paragraphs, parses publication dates (JSON-LD, OpenGraph, `<time>`), and scores relevance.
+- **Cross-Source Corroboration**: Measures how many independent root domains support a given claim.
+- **Explicit Contradiction Alerts**: Scans across independent sources for numerical, temporal, and polarity discrepancies, formatting explicit warnings (*"Sources disagree: Source A reports X, Source B reports Y"*).
+- **Anti-Hallucination Citation Invariant**: Every citation `[1]`, `[2]` strictly maps to an authentic, retrieved source URL with direct external links.
+- **Factual Grounding Guarantee**: Never claims "100% accurate" or "absolute certainty"; presents probabilistic grounding scores with transparent caveats.
 
 ---
 
@@ -231,6 +235,7 @@ py scripts/cli.py --url https://example.com --depth 1 --no-color
 
 | Argument | Type | Default | Description |
 | :--- | :---: | :---: | :--- |
+| `--answer`, `-a` | Flag | `False` | **Web Search Engine**: research query, extract evidence, detect contradictions, and synthesize grounded answer |
 | `--url` | String | `None` | Seed starting URL (triggers non-interactive mode when provided) |
 | `--depth` | Int | `2` | Maximum crawling depth ($0 \le \text{depth} \le 5$) |
 | `--max-pages` | Int | `50` | Maximum pages safety cap |
@@ -245,6 +250,30 @@ py scripts/cli.py --url https://example.com --depth 1 --no-color
 | `--no-tree` | Flag | `False` | Omit the hierarchical traversal tree visualization |
 | `--no-table` | Flag | `False` | Omit the detailed ASCII results table |
 | `--no-db` | Flag | `False` | Do not persist session to SQLite database |
+
+---
+
+## Configuring Google Custom Search API (Optional)
+
+The engine features a built-in **zero-configuration Multi-Engine search provider** that works out-of-the-box across public search indexes without requiring any API keys.
+
+To optionally use official **Google Custom Search JSON API**:
+1. Obtain an API Key from the [Google Cloud Console](https://console.cloud.google.com/).
+2. Create a Search Engine ID from the [Programmable Search Engine Dashboard](https://programmablesearchengine.google.com/).
+3. Set environment variables or Streamlit secrets:
+   - `GOOGLE_SEARCH_API_KEY`: Your Google Cloud API Key
+   - `GOOGLE_SEARCH_ENGINE_ID`: Your Programmable Search Engine CX ID
+
+```bash
+# PowerShell (Windows)
+$env:GOOGLE_SEARCH_API_KEY="AIzaSyYourKeyHere"
+$env:GOOGLE_SEARCH_ENGINE_ID="your_engine_cx"
+
+# Linux / macOS
+export GOOGLE_SEARCH_API_KEY="AIzaSyYourKeyHere"
+export GOOGLE_SEARCH_ENGINE_ID="your_engine_cx"
+```
+*In Streamlit Cloud, add them directly in `App settings -> Secrets`.*
 
 ---
 

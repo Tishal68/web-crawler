@@ -1,6 +1,5 @@
 """
-Web Crawler Analytics Web Application.
-Academic Machine Learning / Data Mining / Web Mining project.
+Web Crawler & Evidence-Backed Search Engine.
 Main entry point for Streamlit application.
 Futuristic Cyber-Analytics Command Center visual theme.
 """
@@ -29,11 +28,14 @@ from ui.dashboard import (
     render_failed_section,
     render_history_section,
 )
+from search.pipeline import SearchPipeline
+from ui.search_view import render_search_view, render_search_history_view
+from ui.source_inspector import render_source_inspector
 
 # Initialize page settings
 st.set_page_config(
-    page_title="Web Crawler Analytics // Control Center",
-    page_icon="🕸️",
+    page_title="Web Search & Deep Crawler // Control Center",
+    page_icon="🔎",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
@@ -43,6 +45,11 @@ apply_custom_styles()
 
 # Initialize SQLite database repository
 db = CrawlDatabase()
+
+# Initialize Web Search Pipeline
+if "search_pipeline" not in st.session_state:
+    st.session_state["search_pipeline"] = SearchPipeline(db=db)
+search_pipeline = st.session_state["search_pipeline"]
 
 # Quick Test Target Presets (Direct URLs & Internet Search Queries)
 PRESETS = {
@@ -102,11 +109,8 @@ if "input_max_depth" not in st.session_state:
 if "input_max_pages" not in st.session_state:
     st.session_state["input_max_pages"] = 30
 
-# Safety reset: the crawl is fully synchronous — if this page is rendering, no crawl is actively
-# running in this execution context. Unconditionally reset is_crawling so a previous crashed/killed
-# crawl session never permanently disables the Start button.
+# Safety reset
 st.session_state["is_crawling"] = False
-
 
 
 def on_preset_change():
@@ -154,237 +158,219 @@ def reset_crawl_state_callback():
     st.session_state.pop("history_loaded_notification", None)
 
 
-# --- Main Cyber Command Center ---
-render_header()
+def render_deep_crawler_mode():
+    """Render the full BFS Crawler Command Deck, Traversal Engine, and Analytics Dashboards."""
+    raw_deck_input = st.session_state.get("input_target_url", "").strip()
+    is_search_mode = is_search_query(raw_deck_input) if raw_deck_input else False
+    mode_badge_html = (
+        '<span style="background: rgba(168, 85, 247, 0.2); border: 1px solid #A855F7; color: #D8B4FE; padding: 0.2rem 0.55rem; border-radius: 4px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em;">🌐 INTERNET SEARCH &amp; MINING</span>'
+        if is_search_mode
+        else '<span style="background: rgba(6, 182, 212, 0.15); border: 1px solid #06B6D4; color: #22D3EE; padding: 0.2rem 0.55rem; border-radius: 4px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em;">🎯 DIRECT TARGET SEED URL</span>'
+    )
 
-# --- Unified Global Command Bar (Always visible across all views) ---
-raw_deck_input = st.session_state.get("input_target_url", "").strip()
-is_search_mode = is_search_query(raw_deck_input) if raw_deck_input else False
-mode_badge_html = (
-    '<span style="background: rgba(168, 85, 247, 0.2); border: 1px solid #A855F7; color: #D8B4FE; padding: 0.2rem 0.55rem; border-radius: 4px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em;">🌐 INTERNET SEARCH &amp; MINING</span>'
-    if is_search_mode
-    else '<span style="background: rgba(6, 182, 212, 0.15); border: 1px solid #06B6D4; color: #22D3EE; padding: 0.2rem 0.55rem; border-radius: 4px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em;">🎯 DIRECT TARGET SEED URL</span>'
-)
-
-st.markdown(f"""
-    <div class="crawl-command-bar">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.55rem; flex-wrap: wrap; gap: 0.5rem;">
-            <div style="font-size: 0.78rem; font-weight: 800; letter-spacing: 0.08em; color: #FFFFFF; display: flex; align-items: center; gap: 0.45rem;">
-                ⚡ GLOBAL CRAWL COMMAND DECK
-            </div>
-            <div style="font-size: 0.68rem; color: #22D3EE; font-family: 'JetBrains Mono', monospace; letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.6rem;">
-                {mode_badge_html}
-                <span style="color: #94A3B8;">BFS TRAVERSAL // PROTOCOL READY</span>
+    st.markdown(f"""
+        <div class="crawl-command-bar">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.55rem; flex-wrap: wrap; gap: 0.5rem;">
+                <div style="font-size: 0.78rem; font-weight: 800; letter-spacing: 0.08em; color: #FFFFFF; display: flex; align-items: center; gap: 0.45rem;">
+                    ⚡ GLOBAL CRAWL COMMAND DECK
+                </div>
+                <div style="font-size: 0.68rem; color: #22D3EE; font-family: 'JetBrains Mono', monospace; letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.6rem;">
+                    {mode_badge_html}
+                    <span style="color: #94A3B8;">BFS TRAVERSAL // PROTOCOL READY</span>
+                </div>
             </div>
         </div>
-""", unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
-# Bug 7 fix: wider action buttons so they don't wrap below 1280px
-col_pre, col_url, col_btn, col_clr = st.columns([1.8, 4.5, 1.6, 1.1])
+    if is_search_mode:
+        col_tip, col_sw = st.columns([5.5, 2.5])
+        with col_tip:
+            st.markdown(f"""
+                <div style="font-size: 0.74rem; color: #D8B4FE; padding: 0.2rem 0;">
+                    💡 <b>Research Query Detected:</b> Want verified evidence and a direct answer for <i>"{html.escape(raw_deck_input[:40])}..."</i>?
+                </div>
+            """, unsafe_allow_html=True)
+        with col_sw:
+            if st.button("🔎 Switch to Web Search & Answers", key="btn_switch_search_mode", use_container_width=True):
+                st.session_state["search_query_input"] = raw_deck_input
+                st.session_state["app_operational_mode"] = "🔎 Web Search & Answers"
+                st.session_state["trigger_auto_search"] = True
+                st.rerun()
 
-with col_pre:
-    preset_names = ["⚡ Presets: Select Target..."] + list(PRESETS.keys())
-    st.selectbox(
-        "Quick Target Presets",
-        preset_names,
-        key="console_preset_select",
-        on_change=on_preset_change,
-        label_visibility="collapsed",
-    )
+    col_pre, col_url, col_btn, col_clr = st.columns([1.8, 4.5, 1.6, 1.1])
 
-with col_url:
-    start_url_input = st.text_input(
-        "Target Seed URL or Words / Sentences",
-        placeholder="Enter website URL (https://...) or words / sentence to crawl across internet...",
-        key="input_target_url",
-        label_visibility="collapsed",
-    )
-
-with col_btn:
-    btn_start = st.button("⚡ Start Crawl", type="primary", use_container_width=True)
-
-with col_clr:
-    btn_clear = st.button("🧹 Clear", type="secondary", use_container_width=True, on_click=reset_crawl_state_callback)
-
-with st.expander("⚙️ Traversal Parameters & Politeness Policies", expanded=False):
-    col_d, col_p, col_t, col_w = st.columns(4)
-    with col_d:
-        max_depth = st.number_input(
-            "Max Traversal Depth",
-            min_value=0,
-            step=1,
-            key="input_max_depth",
-        )
-    with col_p:
-        max_pages = st.number_input(
-            "Max Pages Safety Cap",
-            min_value=1,
-            step=5,
-            key="input_max_pages",
-        )
-    with col_t:
-        timeout_val = st.number_input(
-            "HTTP Timeout (seconds)",
-            min_value=1.0,
-            max_value=60.0,
-            value=10.0,
-            step=1.0,
-            key="input_timeout",
-        )
-    with col_w:
-        delay_val = st.number_input(
-            "Politeness Delay (seconds)",
-            min_value=0.0,
-            max_value=5.0,
-            value=0.2,
-            step=0.1,
-            key="input_delay",
+    with col_pre:
+        preset_names = ["⚡ Presets: Select Target..."] + list(PRESETS.keys())
+        st.selectbox(
+            "Quick Target Presets",
+            preset_names,
+            key="console_preset_select",
+            on_change=on_preset_change,
+            label_visibility="collapsed",
         )
 
-    # Word & Sentence Mining Target Filter
-    keyword_filter_val = st.text_input(
-        "Target Word / Sentence Match Filter (Optional)",
-        placeholder="Highlight & extract specific sentences containing these words across crawled pages...",
-        key="input_keyword_filter",
-        help="Optional words or phrases to mine and extract from crawled web pages. Matching sentences will be highlighted in the explorer.",
-    )
-
-    col_chk1, col_chk2, col_chk3 = st.columns(3)
-    with col_chk1:
-        stay_on_domain = st.checkbox(
-            "Stay on Domain (Block Outbound Hosts)",
-            value=False if is_search_mode else True,
-            key="chk_stay_domain",
-            help="When disabled, the crawler traverses outbound hyperlinks across multiple domains on the web.",
-        )
-    with col_chk2:
-        respect_robots = st.checkbox(
-            "Respect robots.txt (Disallow Directives)",
-            value=True,
-            key="chk_robots",
-        )
-    with col_chk3:
-        save_to_db = st.checkbox(
-            "Persist Session to SQLite Database",
-            value=True,
-            key="chk_sqlite",
+    with col_url:
+        start_url_input = st.text_input(
+            "Target Seed URL or Words / Sentences",
+            placeholder="Enter website URL (https://...) or words / sentence to crawl across internet...",
+            key="input_target_url",
+            label_visibility="collapsed",
         )
 
+    with col_btn:
+        btn_start = st.button("⚡ Start Crawl", type="primary", use_container_width=True)
 
+    with col_clr:
+        btn_clear = st.button("🧹 Clear", type="secondary", use_container_width=True, on_click=reset_crawl_state_callback)
 
-# Handle Crawl Execution
-if btn_start:
-    raw_input = st.session_state.get("input_target_url", "").strip()
-    kw_filter = st.session_state.get("input_keyword_filter", "").strip() or None
-
-    if not raw_input:
-        st.error("❌ **Missing Input:** Please provide a target URL or enter words / a sentence to crawl across the internet.")
-    else:
-        is_query = is_search_query(raw_input)
-        target_to_crawl = raw_input
-        valid_target = True
-
-        if not is_query:
-            norm_target = raw_input
-            if "://" not in norm_target:
-                norm_target = "https://" + norm_target
-            normalized_url = normalize_url(norm_target)
-            if not normalized_url or not is_valid_url(normalized_url):
-                st.error("❌ **Invalid Target URL:** Please provide a valid HTTP or HTTPS address (e.g. `https://example.com`), or enter words / a sentence to search across the internet.")
-                valid_target = False
-            else:
-                target_to_crawl = normalized_url
-
-        if valid_target:
-            config = CrawlConfig(
-                start_url=target_to_crawl,
-                max_depth=int(st.session_state.get("input_max_depth", 2)),
-                max_pages=int(st.session_state.get("input_max_pages", 30)),
-                timeout=float(st.session_state.get("input_timeout", 10.0)),
-                request_delay=float(st.session_state.get("input_delay", 0.2)),
-                stay_on_domain=bool(st.session_state.get("chk_stay_domain", False if is_query else True)),
-                respect_robots=bool(st.session_state.get("chk_robots", True)),
-                search_query=raw_input if is_query else None,
-                keyword_filter=kw_filter,
+    with st.expander("⚙️ Traversal Parameters & Politeness Policies", expanded=False):
+        col_d, col_p, col_t, col_w = st.columns(4)
+        with col_d:
+            max_depth = st.number_input(
+                "Max Traversal Depth",
+                min_value=0,
+                step=1,
+                key="input_max_depth",
+            )
+        with col_p:
+            max_pages = st.number_input(
+                "Max Pages Safety Cap",
+                min_value=1,
+                step=5,
+                key="input_max_pages",
+            )
+        with col_t:
+            timeout_val = st.number_input(
+                "HTTP Timeout (seconds)",
+                min_value=1.0,
+                max_value=60.0,
+                value=10.0,
+                step=1.0,
+                key="input_timeout",
+            )
+        with col_w:
+            delay_val = st.number_input(
+                "Politeness Delay (seconds)",
+                min_value=0.0,
+                max_value=5.0,
+                value=0.2,
+                step=0.1,
+                key="input_delay",
             )
 
-            crawler = WebCrawler(config=config)
-            progress_ui = render_live_progress_container()
+        keyword_filter_val = st.text_input(
+            "Target Word / Sentence Match Filter (Optional)",
+            placeholder="Highlight & extract specific sentences containing these words across crawled pages...",
+            key="input_keyword_filter",
+            help="Optional words or phrases to mine and extract from crawled web pages.",
+        )
 
-            exec_summary: CrawlSessionSummary = None
-            stream_log = []
+        col_c1, col_c2, col_c3 = st.columns(3)
+        with col_c1:
+            stay_on_domain = st.checkbox("Stay on Base Domain", value=True, key="chk_stay_domain")
+        with col_c2:
+            respect_robots = st.checkbox("Respect robots.txt", value=True, key="chk_robots")
+        with col_c3:
+            enable_sqlite = st.checkbox("Persist Session in SQLite", value=True, key="chk_sqlite")
 
-            st.session_state["is_crawling"] = True
-            try:
-                # Execute generator stream for live UI updates
-                stream = crawler.crawl_stream(config)
-                while True:
-                    event = next(stream)
+    # Live Crawl Execution
+    if btn_start:
+        target_raw = start_url_input.strip()
+        is_query_mode = is_search_query(target_raw)
 
-                    # Update live progress indicators
-                    pct = min(1.0, event.pages_crawled / max(1, config.max_pages))
-                    progress_ui["progress_bar"].progress(pct)
+        if not target_raw:
+            st.warning("Please specify a starting target URL or search query.")
+            return
 
-                    progress_ui["metric_crawled"].metric("Pages Crawled", f"{event.pages_crawled} / {config.max_pages}")
-                    progress_ui["metric_discovered"].metric("Discovered Links", event.discovered_count)
-                    progress_ui["metric_failed"].metric("Failed Requests", event.failed_count)
-                    progress_ui["metric_depth"].metric("Current Frontier", f"Depth {event.current_depth}")
+        if not is_query_mode:
+            target_url = target_raw
+            if "://" not in target_url:
+                target_url = "https://" + target_url
+            norm_url = normalize_url(target_url)
+            if not norm_url or not is_valid_url(norm_url):
+                st.error("Invalid URL format. Please enter a valid HTTP or HTTPS address.")
+                return
+            config_start_url = norm_url
+            config_search_query = None
+        else:
+            config_start_url = ""
+            config_search_query = target_raw
 
-                    display_url = event.current_url if len(event.current_url) <= 85 else event.current_url[:82] + "..."
-                    if event.event_type == "searching":
-                        progress_ui["status_text"].markdown(f"🔍 **{html.escape(event.message)}**")
-                    else:
-                        progress_ui["status_text"].markdown(f"**Active Target:** `{display_url}`")
+        config = CrawlConfig(
+            start_url=config_start_url,
+            max_depth=int(max_depth),
+            max_pages=int(max_pages),
+            stay_on_domain=stay_on_domain,
+            respect_robots=respect_robots,
+            request_delay=float(delay_val),
+            timeout=float(timeout_val),
+            keyword_filter=keyword_filter_val.strip() if keyword_filter_val else None,
+            search_query=config_search_query,
+        )
 
-                    # Terminal-styled streaming console log with strict XSS escaping
-                    if event.event_type == "searching":
-                        glyph = "🔍"
-                        cls = "stream-searching"
-                        short_url = f"Search: {event.current_url}"
-                    elif event.event_type in ("page_crawled", "seed_started", "crawl_started", "success"):
-                        glyph = "✓"
-                        cls = "stream-success"
-                        short_url = event.current_url.replace("https://", "").replace("http://", "")
-                    else:
-                        glyph = "✕"
-                        cls = "stream-fail"
-                        short_url = event.current_url.replace("https://", "").replace("http://", "")
+        st.session_state["is_crawling"] = True
+        progress_container, progress_bar, status_text, stat_pages, stat_queue, stat_elapsed = render_live_progress_container()
 
-                    time_now = datetime.now().strftime("%H:%M:%S")
-                    if len(short_url) > 42:
-                        short_url = short_url[:39] + "..."
-                    safe_short_url = html.escape(short_url)
-                    stream_log.append(f"[{time_now}] <span class='{cls}'>{glyph}</span> <span class='stream-depth'>DEPTH {event.current_depth}</span>  {safe_short_url}")
-                    if len(stream_log) > 5:
-                        stream_log.pop(0)
+        crawler = WebCrawler(config=config)
+        start_time = datetime.now()
 
-                    log_lines = "<br>".join(stream_log)
-                    progress_blocks = int(pct * 20)
-                    progress_ascii = "█" * progress_blocks + "░" * (20 - progress_blocks)
-                    progress_ui["live_console"].markdown(
-                        f'''<div class="live-stream-box">
-                            <div class="stream-title">⚡ LIVE CRAWL STREAM</div>
-                            <div style="margin-bottom: 0.8rem; line-height: 1.6;">{log_lines}</div>
-                            <div style="color: #94A3B8; font-size: 0.78rem;">
-                                DEPTH &nbsp;&nbsp;&nbsp;&nbsp; {event.current_depth} / {config.max_depth}<br>
-                                PROGRESS &nbsp;<span style="color: #22D3EE;">{progress_ascii}</span> {int(pct*100)}%
-                            </div>
-                        </div>''',
-                        unsafe_allow_html=True,
-                    )
-            except StopIteration as e:
-                exec_summary = e.value
-            finally:
-                st.session_state["is_crawling"] = False
+        with progress_container:
+            terminal_placeholder = st.empty()
+            recent_logs = []
 
-        # Save session state
+            for event in crawler.crawl():
+                pct = min(1.0, event.pages_crawled / max(1, config.max_pages))
+                progress_bar.progress(pct)
+                status_text.text(f"BFS Active (Depth {event.current_depth}) // {event.current_url}")
+                stat_pages.metric("Pages Crawled", event.pages_crawled)
+                stat_queue.metric("URLs Queued", event.queue_size)
+                stat_elapsed.metric("Elapsed Time", f"{event.elapsed_seconds:.1f}s")
+
+                status_glyph = "✓" if event.status == "success" else "✗"
+                log_line = f"[{status_glyph}] [D:{event.current_depth}] {event.current_url}"
+                recent_logs.append(log_line)
+                if len(recent_logs) > 6:
+                    recent_logs.pop(0)
+
+                terminal_placeholder.markdown(f"""
+                    <div class="live-stream-box" style="margin-top: 0.5rem; margin-bottom: 0.5rem; padding: 0.6rem 0.8rem;">
+                        <div class="stream-title" style="margin-bottom: 0.3rem;">
+                            <span class="stream-beacon"></span> LIVE BFS PACKET STREAM
+                        </div>
+                        <div style="font-size: 0.76rem; color: #94A3B8; font-family: 'JetBrains Mono', monospace;">
+                            {"<br>".join([html.escape(l) for l in recent_logs])}
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+
+        end_time = datetime.now()
+        elapsed = (end_time - start_time).total_seconds()
+        st.session_state["is_crawling"] = False
+
+        exec_summary = CrawlSessionSummary(
+            session_id=str(datetime.now().strftime("%Y%m%d_%H%M%S")),
+            start_url=config_start_url or f"Search: {config_search_query}",
+            max_depth=config.max_depth,
+            max_pages=config.max_pages,
+            start_time=start_time.isoformat(),
+            end_time=end_time.isoformat(),
+            elapsed_seconds=elapsed,
+            pages_crawled=len(crawler.crawled_urls),
+            discovered_urls_count=len(crawler.discovered_urls),
+            failed_urls_count=len(crawler.failures),
+            total_internal_links=sum(p.internal_links_count for p in crawler.page_results),
+            total_external_links=sum(p.external_links_count for p in crawler.page_results),
+            stay_on_domain=config.stay_on_domain,
+            max_depth_reached=max((p.depth for p in crawler.page_results), default=0),
+            search_query=config_search_query,
+        )
+
         st.session_state["crawl_summary"] = exec_summary
         st.session_state["page_results"] = crawler.page_results
         st.session_state["failures"] = crawler.failures
         st.session_state["graph_edges"] = crawler.graph_edges
         st.session_state["discovered_urls"] = list(crawler.discovered_urls)
 
-        # Persist to SQLite if enabled
         if st.session_state.get("chk_sqlite", True) and exec_summary:
             db.save_session(
                 summary=exec_summary,
@@ -394,205 +380,145 @@ if btn_start:
 
         st.rerun()
 
-# Retrieve active session state
-summary: CrawlSessionSummary = st.session_state.get("crawl_summary")
-pages = st.session_state.get("page_results", [])
-failures = st.session_state.get("failures", [])
-edges = st.session_state.get("graph_edges", [])
+    # Retrieve active session state
+    summary: CrawlSessionSummary = st.session_state.get("crawl_summary")
+    pages = st.session_state.get("page_results", [])
+    failures = st.session_state.get("failures", [])
+    edges = st.session_state.get("graph_edges", [])
 
-# Fixed, stable tab headers — shortened to prevent truncation at 1280px viewport
-tab_mission, tab_results, tab_graph, tab_charts, tab_explorer, tab_failed, tab_history = st.tabs([
-    "⚡ Mission",
-    "📋 Results",
-    "🕸️ Network",
-    "📈 Analytics",
-    "🔍 URL Dive",
-    "⚠️ Failures",
-    "📜 History",
-])
+    tab_mission, tab_results, tab_graph, tab_charts, tab_explorer, tab_failed, tab_history = st.tabs([
+        "⚡ Mission",
+        "📋 Results",
+        "🕸️ Network",
+        "📈 Analytics",
+        "🔍 URL Dive",
+        "⚠️ Failures",
+        "📜 History",
+    ])
 
-# ==============================================================================
-# TAB 1: MISSION CONTROL (EXECUTIVE TELEMETRY & STANDBY GUIDANCE)
-# ==============================================================================
-with tab_mission:
-    if summary is not None:
-        st.markdown(f"""
-            <div class="results-ready-bar">
-                <div style="font-size: 0.84rem;">
-                    <b style="color: #22C55E;">✓ CRAWL SESSION READY:</b>
-                    <span style="color: #F8FAFC; margin-left: 0.35rem;">{summary.pages_crawled} pages analyzed across depth frontier {summary.max_depth_reached}.</span>
+    with tab_mission:
+        if summary is not None:
+            st.markdown(f"""
+                <div class="results-ready-bar">
+                    <div style="font-size: 0.84rem;">
+                        <b style="color: #22C55E;">✓ CRAWL SESSION READY:</b>
+                        <span style="color: #F8FAFC; margin-left: 0.35rem;">{summary.pages_crawled} pages analyzed across depth frontier {summary.max_depth_reached}.</span>
+                    </div>
+                    <div style="color: #94A3B8; font-size: 0.76rem;">
+                        Access details via tabs: <b>📋 Results Table</b> &bull; <b>🕸️ Network Topology</b> &bull; <b>📈 Traversal Analytics</b>
+                    </div>
                 </div>
-                <div style="color: #94A3B8; font-size: 0.76rem;">
-                    Access details via tabs: <b>📋 Results Table</b> &bull; <b>🕸️ Network Topology</b> &bull; <b>📈 Traversal Analytics</b> &bull; <b>🔍 URL Deep Dive</b>
+            """, unsafe_allow_html=True)
+            render_completion_banner(summary)
+            render_kpi_cards(summary, pages=pages)
+        else:
+            st.markdown("""
+                <div class="standby-panel-glass">
+                    <div style="font-size: 0.72rem; font-weight: 700; color: #22D3EE; letter-spacing: 0.09em; text-transform: uppercase; margin-bottom: 0.3rem; display: flex; align-items: center; gap: 0.45rem;">
+                        <span class="pulse-beacon-cyan"></span> SYSTEM READY // STANDBY MODE
+                    </div>
+                    <h3 style="color: #FFFFFF; font-size: 1.35rem; font-weight: 800; margin-top: 0; margin-bottom: 0.4rem;">
+                        Autonomous Web Crawler &amp; Topology Engine
+                    </h3>
+                    <p style="color: #94A3B8; font-size: 0.88rem; line-height: 1.55; margin-bottom: 0;">
+                        Configure seed URL and traversal limits in the command deck above, or click a rapid preset below.
+                        The engine executes Breadth-First Search traversal, prevents circular loops, parses hyperlinks, and renders real-time interactive telemetry.
+                    </p>
                 </div>
-            </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
 
-        render_completion_banner(summary)
-        render_kpi_cards(summary, pages=pages)
-    else:
-        # Futuristic Standby Guidance Panel
-        st.markdown("""
-            <div class="standby-panel-glass">
-                <div style="font-size: 0.72rem; font-weight: 700; color: #22D3EE; letter-spacing: 0.09em; text-transform: uppercase; margin-bottom: 0.3rem; display: flex; align-items: center; gap: 0.45rem;">
-                    <span class="pulse-beacon-cyan"></span> SYSTEM READY // STANDBY MODE
-                </div>
-                <h3 style="color: #FFFFFF; font-size: 1.35rem; font-weight: 800; margin-top: 0; margin-bottom: 0.4rem; letter-spacing: -0.01em;">
-                    Autonomous Web Crawler &amp; Topology Engine
-                </h3>
-                <p style="color: #94A3B8; font-size: 0.88rem; line-height: 1.55; margin-bottom: 0;">
-                    Configure seed URL and traversal limits in the command deck above, or click a rapid preset below.
-                    The engine executes Breadth-First Search traversal, prevents circular loops, parses hyperlinks, and renders real-time interactive telemetry.
-                </p>
-            </div>
-        """, unsafe_allow_html=True)
-
-        st.markdown("""
-            <div style="font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; color: #22D3EE; text-transform: uppercase; margin-bottom: 0.6rem;">
-                // RAPID TEST TARGET PRESETS
-            </div>
-        """, unsafe_allow_html=True)
-        preset_items = list(PRESETS.items())
-        row_size = 3
-        global_card_idx = 0
-        for r_start in range(0, len(preset_items), row_size):
-            chunk = preset_items[r_start : r_start + row_size]
-            p_cols = st.columns(len(chunk))
-            for c_idx, (p_title, p_spec) in enumerate(chunk):
-                with p_cols[c_idx]:
-                    safe_preset_title = html.escape(p_title)
-                    safe_preset_url = html.escape(p_spec['url'])
-                    safe_preset_desc = html.escape(p_spec['desc'])
-                    st.markdown(f"""
-                        <div class="kpi-card preset-card" style="padding: 0.85rem 1rem; min-height: 130px; display: flex; flex-direction: column; justify-content: space-between; margin-bottom: 0.4rem;">
-                            <div>
-                                <div style="font-size: 0.82rem; font-weight: 800; color: #FFFFFF; margin-bottom: 0.2rem;">
-                                    {safe_preset_title}
-                                </div>
-                                <div style="font-size: 0.70rem; color: #22D3EE; font-family: 'JetBrains Mono', monospace; word-break: break-all; margin-bottom: 0.3rem;">
-                                    {safe_preset_url}
-                                </div>
-                                <div style="font-size: 0.72rem; color: #94A3B8; line-height: 1.35;">
-                                    {safe_preset_desc}
+            preset_items = list(PRESETS.items())
+            row_size = 3
+            global_card_idx = 0
+            for r_start in range(0, len(preset_items), row_size):
+                chunk = preset_items[r_start : r_start + row_size]
+                p_cols = st.columns(len(chunk))
+                for c_idx, (p_title, p_spec) in enumerate(chunk):
+                    with p_cols[c_idx]:
+                        safe_preset_title = html.escape(p_title)
+                        safe_preset_url = html.escape(p_spec['url'])
+                        safe_preset_desc = html.escape(p_spec['desc'])
+                        st.markdown(f"""
+                            <div class="kpi-card preset-card" style="padding: 0.85rem 1rem; min-height: 130px; display: flex; flex-direction: column; justify-content: space-between; margin-bottom: 0.4rem;">
+                                <div>
+                                    <div style="font-size: 0.82rem; font-weight: 800; color: #FFFFFF; margin-bottom: 0.2rem;">
+                                        {safe_preset_title}
+                                    </div>
+                                    <div style="font-size: 0.70rem; color: #22D3EE; font-family: 'JetBrains Mono', monospace; word-break: break-all; margin-bottom: 0.3rem;">
+                                        {safe_preset_url}
+                                    </div>
+                                    <div style="font-size: 0.72rem; color: #94A3B8; line-height: 1.35;">
+                                        {safe_preset_desc}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    """, unsafe_allow_html=True)
-                    st.button(
-                        f"⚡ Load {p_title.split(':')[0]}",
-                        key=f"btn_preset_card_{global_card_idx}",
-                        use_container_width=True,
-                        on_click=load_preset_card_callback,
-                        args=(p_title,),
-                    )
-                    global_card_idx += 1
+                        """, unsafe_allow_html=True)
+                        st.button(
+                            f"⚡ Load {p_title.split(':')[0]}",
+                            key=f"btn_preset_card_{global_card_idx}",
+                            use_container_width=True,
+                            on_click=load_preset_card_callback,
+                            args=(p_title,),
+                        )
+                        global_card_idx += 1
 
-        # Engine Architecture Pillars
-        st.markdown("<div style='margin-top: 1.2rem;'></div>", unsafe_allow_html=True)
-        st.markdown("""
-            <div style="font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; color: #22D3EE; text-transform: uppercase; margin-bottom: 0.6rem;">
-                // CORE ENGINE ARCHITECTURE GUARANTEES
-            </div>
-        """, unsafe_allow_html=True)
-        col_arch1, col_arch2, col_arch3, col_arch4 = st.columns(4)
-        with col_arch1:
-            st.markdown("""
-                <div class="kpi-card kpi-card-cyan" style="min-height: 90px; padding: 0.8rem 1rem;">
-                    <div style="font-size: 0.80rem; font-weight: 700; color: #22D3EE; margin-bottom: 0.2rem;">
-                        ⚡ BFS Traversal
-                    </div>
-                    <div style="font-size: 0.74rem; color: #94A3B8; line-height: 1.4;">
-                        Level-synchronous queue expands seed neighbors completely before diving deeper.
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-        with col_arch2:
-            st.markdown("""
-                <div class="kpi-card kpi-card-violet" style="min-height: 90px; padding: 0.8rem 1rem;">
-                    <div style="font-size: 0.80rem; font-weight: 700; color: #A78BFA; margin-bottom: 0.2rem;">
-                        🔄 Loop Mitigation
-                    </div>
-                    <div style="font-size: 0.74rem; color: #94A3B8; line-height: 1.4;">
-                        Canonical URL hashing (scheme, port, fragments, sorted query) blocks circular paths.
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-        with col_arch3:
-            st.markdown("""
-                <div class="kpi-card kpi-card-green" style="min-height: 90px; padding: 0.8rem 1rem;">
-                    <div style="font-size: 0.80rem; font-weight: 700; color: #22C55E; margin-bottom: 0.2rem;">
-                        🤖 robots.txt Rules
-                    </div>
-                    <div style="font-size: 0.74rem; color: #94A3B8; line-height: 1.4;">
-                        Dynamic Disallow directive compliance with polite per-host delay throttling.
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-        with col_arch4:
-            st.markdown("""
-                <div class="kpi-card kpi-card-sky" style="min-height: 90px; padding: 0.8rem 1rem;">
-                    <div style="font-size: 0.80rem; font-weight: 700; color: #0EA5E9; margin-bottom: 0.2rem;">
-                        💾 SQLite Storage
-                    </div>
-                    <div style="font-size: 0.74rem; color: #94A3B8; line-height: 1.4;">
-                        Persistent relational session archive paired with 2D Spring network topology graph.
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
+    with tab_results:
+        if pages:
+            render_results_section(pages, summary=summary)
+        else:
+            st.info("No crawled pages recorded yet. Start a crawl session above to populate the data grid.")
+
+    with tab_graph:
+        if pages and edges:
+            render_network_graph_section(pages, edges)
+        else:
+            st.info("Network topology graph will appear once a crawl session with link connections completes.")
+
+    with tab_charts:
+        if pages:
+            render_charts_section(pages)
+        else:
+            st.info("Traversal distribution metrics will render once pages are crawled.")
+
+    with tab_explorer:
+        if pages:
+            render_url_explorer(pages)
+        else:
+            st.info("No crawled pages available to inspect. Launch a crawl session first.")
+
+    with tab_failed:
+        if summary is not None:
+            render_failed_section(failures)
+        else:
+            st.info("No active crawl session. Run a crawl to view network exceptions or policy exclusions.")
+
+    with tab_history:
+        render_history_section(db)
 
 
-# ==============================================================================
-# TAB 2: CRAWLED WEBPAGES RESULTS TABLE & MULTI-FORMAT EXPORTS
-# ==============================================================================
-with tab_results:
-    if pages and summary:
-        render_results_section(pages, summary)
-    else:
-        st.info("No crawled pages to display yet. Configure target parameters in the command deck above and click **⚡ Start Crawl**.")
+# --- Application Header ---
+render_header()
 
+# --- Top Navigation Mode Switcher ---
+app_mode = st.radio(
+    "Operational Mode",
+    ["🔎 Web Search & Answers", "🕸️ Deep Crawler & Analytics"],
+    horizontal=True,
+    key="app_operational_mode",
+    label_visibility="collapsed",
+)
 
-# ==============================================================================
-# TAB 3: 2D BFS NETWORK TOPOLOGY GRAPH (SPRING FORCE LAYOUT)
-# ==============================================================================
-with tab_graph:
-    if pages:
-        render_network_graph_section(pages, edges)
-    else:
-        st.info("No network topology graph available. Launch a crawl session to visualize the hyperlink network.")
-
-
-# ==============================================================================
-# TAB 4: TRAVERSAL & LATENCY PERFORMANCE ANALYTICS
-# ==============================================================================
-with tab_charts:
-    if pages and summary:
-        render_charts_section(pages, failures, summary, edges)
-    else:
-        st.info("No telemetry charts available. Launch a crawl session to generate depth and latency metrics.")
-
-
-# ==============================================================================
-# TAB 5: URL DEEP DIVE & HYPERLINK EXPLORER
-# ==============================================================================
-with tab_explorer:
-    if pages:
-        render_url_explorer(pages)
-    else:
-        st.info("No crawled pages available to inspect. Launch a crawl session first.")
-
-
-# ==============================================================================
-# TAB 6: FAILED REQUESTS & EXCLUSION GUARDRAILS
-# ==============================================================================
-with tab_failed:
-    if summary is not None:
-        render_failed_section(failures)
-    else:
-        st.info("No active crawl session. Run a crawl to view network exceptions or policy exclusions.")
-
-
-# ==============================================================================
-# TAB 7: SQLITE RELATIONAL CRAWL HISTORY BROWSER
-# ==============================================================================
-with tab_history:
-    render_history_section(db)
+if app_mode == "🔎 Web Search & Answers":
+    tab_search, tab_inspector, tab_search_hist = st.tabs([
+        "🎯 Grounded Search & Answers",
+        "🔍 Source Evidence Inspector",
+        "📜 Search History",
+    ])
+    with tab_search:
+        render_search_view(search_pipeline, db)
+    with tab_inspector:
+        render_source_inspector(st.session_state.get("active_search_result"))
+    with tab_search_hist:
+        render_search_history_view(db)
+else:
+    render_deep_crawler_mode()

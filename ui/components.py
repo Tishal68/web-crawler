@@ -893,6 +893,41 @@ def apply_custom_styles():
                 transition-duration: 0.01ms !important;
             }
         }
+
+        /* === OPERATIONAL MODE SELECTOR SEGMENTED CONTROL === */
+        div[data-testid="stRadio"] > div[role="radiogroup"] {
+            display: flex !important;
+            flex-direction: row !important;
+            gap: 0.5rem !important;
+            background: rgba(11, 16, 32, 0.85) !important;
+            border: 1px solid rgba(34, 211, 238, 0.25) !important;
+            border-radius: 10px !important;
+            padding: 0.35rem !important;
+            margin-bottom: 0.85rem !important;
+            flex-wrap: wrap !important;
+        }
+        div[data-testid="stRadio"] > div[role="radiogroup"] label {
+            background: transparent !important;
+            border: 1px solid transparent !important;
+            border-radius: 8px !important;
+            padding: 0.45rem 1rem !important;
+            font-size: 0.84rem !important;
+            font-weight: 700 !important;
+            color: #94A3B8 !important;
+            cursor: pointer !important;
+            transition: all 0.2s ease !important;
+        }
+        div[data-testid="stRadio"] > div[role="radiogroup"] label:hover {
+            color: #FFFFFF !important;
+            background: rgba(34, 211, 238, 0.08) !important;
+        }
+        div[data-testid="stRadio"] > div[role="radiogroup"] label[data-checked="true"],
+        div[data-testid="stRadio"] > div[role="radiogroup"] label:has(input:checked) {
+            background: linear-gradient(135deg, rgba(34, 211, 238, 0.22) 0%, rgba(139, 92, 246, 0.18) 100%) !important;
+            border: 1px solid #22D3EE !important;
+            color: #FFFFFF !important;
+            box-shadow: 0 0 16px rgba(34, 211, 238, 0.25) !important;
+        }
         </style>
     """, unsafe_allow_html=True)
 

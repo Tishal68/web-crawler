@@ -179,6 +179,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--allow-external", dest="same_domain", action="store_false", help="Allow traversing external domains")
     parser.add_argument("--respect-robots", dest="respect_robots", action="store_true", default=True, help="Respect robots.txt policies (default: True)")
     parser.add_argument("--ignore-robots", dest="respect_robots", action="store_false", help="Ignore robots.txt policies")
+    parser.add_argument("--answer", "-a", dest="answer_mode", action="store_true", help="Execute web search, evidence extraction, and grounded answer retrieval")
     parser.add_argument("--output", "-o", type=str, default=None, help="Output results file (.csv or .json)")
     parser.add_argument("--quiet", "-q", "--minimal", dest="quiet", action="store_true", help="Minimal mode: just crawl without visualizations, tree, or tables")
     parser.add_argument("--json", action="store_true", help="Output results JSON to stdout")
@@ -198,6 +199,49 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     raw_target = args.query or args.url or args.target
     search_query = None
+
+    # Web Search & Grounded Answer retrieval mode
+    if args.answer_mode:
+        q_target = raw_target or prompt_url(colors)
+        q_clean = q_target.strip()
+        from search.pipeline import SearchPipeline
+        pipeline = SearchPipeline()
+        if not args.quiet and not args.json:
+            print(colors.cyan(f"\n🔎 Researching: \"{q_clean}\" across the public web..."))
+        res = pipeline.run(query=q_clean, num_sources=min(12, max(4, args.max_pages)))
+        ans = res.answer
+        conf = res.confidence
+        if args.json:
+            print(json.dumps(res.to_dict(), indent=2))
+            return 0
+        if ans and conf:
+            print(colors.green(f"\n{conf.badge_label} (Confidence Score: {conf.score:.2f} / 1.00)"))
+            print(colors.dim(f"Synthesized across {len(res.ranked_results)} sources and {conf.independent_sources_count} independent domain(s).\n"))
+            print(colors.bold("🎯 DIRECT ANSWER:"))
+            print(ans.direct_answer + "\n")
+            if res.verification.get("contradictions"):
+                print(colors.red("⚠️ SOURCE DISAGREEMENTS DETECTED:"))
+                for c in res.verification["contradictions"]:
+                    print(colors.yellow(f"  - {c.topic_or_entity}: {c.source_a_domain} vs {c.source_b_domain}"))
+                    print(colors.dim(f"    {c.explanation}\n"))
+            if ans.key_findings:
+                print(colors.cyan("🔍 KEY FINDINGS & EVIDENCE:"))
+                for f in ans.key_findings:
+                    print(f"  • {f}")
+                print()
+            if ans.citations:
+                print(colors.bold("📚 VERIFIED SOURCES:"))
+                for c in ans.citations:
+                    d_str = f" ({c.published_date})" if c.published_date else ""
+                    print(f"  [{c.index}] {c.title} - {c.url}")
+                    print(colors.dim(f"      {c.domain} · {c.source_type}{d_str}"))
+                print()
+            if ans.caveats:
+                print(colors.dim("ℹ️ GROUNDING NOTES:"))
+                for cav in ans.caveats:
+                    print(colors.dim(f"  * {cav}"))
+                print()
+        return 0
 
     # Determine configuration (CLI args vs Interactive Prompts)
     if raw_target:
