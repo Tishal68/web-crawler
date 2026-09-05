@@ -37,10 +37,65 @@ from .charts import (
 )
 
 
+class LiveProgressContainer(tuple):
+    """
+    Container supporting both 6-element tuple unpacking:
+      progress_container, progress_bar, status_text, stat_pages, stat_queue, stat_elapsed
+    and dict / attribute access for backwards compatibility.
+    """
+    def __new__(cls, progress_container, progress_bar, status_text, stat_pages, stat_queue, stat_elapsed):
+        return super().__new__(
+            cls,
+            (progress_container, progress_bar, status_text, stat_pages, stat_queue, stat_elapsed)
+        )
+
+    def __init__(self, progress_container, progress_bar, status_text, stat_pages, stat_queue, stat_elapsed):
+        self.progress_container = progress_container
+        self.progress_bar = progress_bar
+        self.status_text = status_text
+        self.stat_pages = stat_pages
+        self.stat_queue = stat_queue
+        self.stat_elapsed = stat_elapsed
+        # Aliases
+        self.metric_crawled = stat_pages
+        self.metric_discovered = stat_queue
+        self.metric_failed = stat_queue
+        self.metric_depth = stat_elapsed
+        self.live_console = status_text
+
+    def __getitem__(self, item):
+        if isinstance(item, int):
+            return super().__getitem__(item)
+        mapping = {
+            "progress_container": self.progress_container,
+            "progress_bar": self.progress_bar,
+            "status_text": self.status_text,
+            "stat_pages": self.stat_pages,
+            "stat_queue": self.stat_queue,
+            "stat_elapsed": self.stat_elapsed,
+            "metric_crawled": self.stat_pages,
+            "metric_discovered": self.stat_queue,
+            "metric_failed": self.stat_queue,
+            "metric_depth": self.stat_elapsed,
+            "live_console": self.status_text,
+        }
+        if item in mapping:
+            return mapping[item]
+        raise KeyError(item)
+
+    def get(self, key, default=None):
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+
 def render_live_progress_container():
     """
     Creates and returns references to empty Streamlit placeholders
     for live streaming of crawl metrics in a futuristic cyber-console format.
+    Returns:
+        progress_container, progress_bar, status_text, stat_pages, stat_queue, stat_elapsed
     """
     st.markdown("""
         <div style="font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; color: #22D3EE; text-transform: uppercase; margin-bottom: 0.4rem;">
@@ -48,30 +103,26 @@ def render_live_progress_container():
         </div>
     """, unsafe_allow_html=True)
 
+    progress_container = st.container()
     status_text = st.empty()
     progress_bar = st.progress(0.0)
 
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3 = st.columns(3)
     with col1:
-        metric_crawled = st.empty()
+        stat_pages = st.empty()
     with col2:
-        metric_discovered = st.empty()
+        stat_queue = st.empty()
     with col3:
-        metric_failed = st.empty()
-    with col4:
-        metric_depth = st.empty()
+        stat_elapsed = st.empty()
 
-    live_console = st.empty()
-
-    return {
-        "status_text": status_text,
-        "progress_bar": progress_bar,
-        "metric_crawled": metric_crawled,
-        "metric_discovered": metric_discovered,
-        "metric_failed": metric_failed,
-        "metric_depth": metric_depth,
-        "live_console": live_console,
-    }
+    return LiveProgressContainer(
+        progress_container=progress_container,
+        progress_bar=progress_bar,
+        status_text=status_text,
+        stat_pages=stat_pages,
+        stat_queue=stat_queue,
+        stat_elapsed=stat_elapsed,
+    )
 
 
 def render_results_section(pages: List[PageResult], summary: CrawlSessionSummary):
