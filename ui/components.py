@@ -947,6 +947,32 @@ def apply_custom_styles():
             box-shadow: 0 0 25px rgba(56, 189, 248, 0.45), 0 0 45px rgba(139, 92, 246, 0.25), inset 0 0 12px rgba(15, 23, 42, 0.6) !important;
             background: rgba(15, 23, 42, 0.95) !important;
         }
+        div[data-testid="stTextInput"] input.cyber-typing-active {
+            border-color: #38BDF8 !important;
+            background: rgba(15, 23, 42, 0.98) !important;
+            box-shadow: 0 0 30px rgba(56, 189, 248, 0.70), 0 0 55px rgba(139, 92, 246, 0.40), inset 0 0 16px rgba(56, 189, 248, 0.25) !important;
+            animation: cyberTypingSurge 0.35s ease-out !important;
+        }
+        @keyframes cyberTypingSurge {
+            0% { transform: scale(1.003); box-shadow: 0 0 35px rgba(56, 189, 248, 0.85), 0 0 60px rgba(139, 92, 246, 0.5), inset 0 0 20px rgba(56, 189, 248, 0.3); }
+            50% { transform: scale(1.0); box-shadow: 0 0 28px rgba(56, 189, 248, 0.70), 0 0 45px rgba(139, 92, 246, 0.4), inset 0 0 14px rgba(56, 189, 248, 0.25); }
+            100% { transform: scale(1.0); box-shadow: 0 0 25px rgba(56, 189, 248, 0.65), 0 0 40px rgba(139, 92, 246, 0.35), inset 0 0 12px rgba(56, 189, 248, 0.2); }
+        }
+        .cyber-spark-particle {
+            position: fixed;
+            pointer-events: none;
+            z-index: 999999;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #38BDF8;
+            box-shadow: 0 0 10px #38BDF8, 0 0 20px #8B5CF6;
+            animation: sparkFloat 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        @keyframes sparkFloat {
+            0% { opacity: 1; transform: translate(0, 0) scale(1.4); }
+            100% { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(0.2); }
+        }
         div[data-testid="stTextInput"] input::placeholder {
             color: #64748B !important;
             font-family: 'JetBrains Mono', monospace !important;

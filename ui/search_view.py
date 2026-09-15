@@ -43,129 +43,328 @@ SEARCH_PRESETS = {
 RADAR_QUERIES = list(SEARCH_PRESETS.values())
 
 
-def render_cyber_prompt_radar():
-    """Renders the Holographic Cyber-Prompt Matrix bar cycling through research prompts with a neon block cursor."""
-    queries_json = json.dumps(RADAR_QUERIES)
-    radar_html = f"""
+def render_interactive_cyber_typing_hud():
+    """Renders an interactive Cyber Typing HUD that reacts exclusively WHILE the user is typing into the search input.
+    Provides live keystroke particle sparks, real-time matrix cypher decryption, animated equalizer audio visualizers,
+    WPM velocity telemetry, dynamic border plasma surge, and optional sci-fi synthesizer sound effects.
+    """
+    hud_html = """
     <!DOCTYPE html>
     <html>
     <head>
     <meta charset="utf-8">
     <style>
-      * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-      body {{
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
         background: transparent;
-        font-family: 'JetBrains Mono', Consolas, 'Courier New', monospace;
+        font-family: 'JetBrains Mono', Consolas, monospace;
         overflow: hidden;
-      }}
-      .radar-bar {{
-        background: linear-gradient(90deg, rgba(56, 189, 248, 0.10) 0%, rgba(139, 92, 246, 0.08) 100%), rgba(11, 16, 32, 0.92);
+        color: #F8FAFC;
+      }
+      .typing-hud-bar {
+        background: linear-gradient(90deg, rgba(56, 189, 248, 0.08) 0%, rgba(139, 92, 246, 0.06) 100%), rgba(11, 16, 32, 0.92);
         border: 1px solid rgba(56, 189, 248, 0.35);
         border-left: 3px solid #38BDF8;
         border-radius: 8px;
-        height: 44px;
+        height: 48px;
         display: flex;
         align-items: center;
         justify-content: space-between;
         padding: 0 0.9rem;
         box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
-      }}
-      .radar-tag {{
+        gap: 0.75rem;
+        transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      .typing-hud-bar.typing-active {
+        border-color: #38BDF8;
+        background: linear-gradient(90deg, rgba(56, 189, 248, 0.16) 0%, rgba(139, 92, 246, 0.12) 100%), rgba(15, 23, 42, 0.98);
+        box-shadow: 0 0 25px rgba(56, 189, 248, 0.45), inset 0 0 12px rgba(56, 189, 248, 0.15);
+      }
+      .hud-status-group {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        white-space: nowrap;
+      }
+      .hud-beacon {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #64748B;
+        box-shadow: 0 0 6px #64748B;
+        transition: all 0.2s ease;
+      }
+      .typing-hud-bar.typing-active .hud-beacon {
+        background: #22C55E;
+        box-shadow: 0 0 10px #22C55E, 0 0 20px rgba(34, 197, 94, 0.9);
+        animation: pGlow 0.9s infinite;
+      }
+      .hud-title {
         font-size: 0.72rem;
         font-weight: 800;
         letter-spacing: 0.08em;
         color: #38BDF8;
         white-space: nowrap;
-        display: flex;
-        align-items: center;
-        gap: 0.45rem;
-      }}
-      .radar-pulse {{
-        display: inline-block;
-        width: 7px;
-        height: 7px;
-        border-radius: 50%;
-        background: #22C55E;
-        box-shadow: 0 0 8px #22C55E, 0 0 14px rgba(34, 197, 94, 0.6);
-        animation: pGlow 1.5s infinite;
-      }}
-      .radar-query-wrap {{
+      }
+      .hud-stream {
         flex-grow: 1;
-        margin: 0 0.8rem;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        font-size: 0.84rem;
+        font-size: 0.82rem;
         color: #E2E8F0;
-      }}
-      .radar-query-text {{
-        color: #F8FAFC;
-        font-weight: 500;
-      }}
-      .radar-caret {{
-        color: #38BDF8;
-        font-weight: 900;
-        text-shadow: 0 0 8px #38BDF8, 0 0 16px rgba(56, 189, 248, 0.7);
-        animation: cBlink 0.8s infinite;
-        margin-left: 2px;
-      }}
-      .radar-sub {{
-        font-size: 0.65rem;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        margin: 0 0.5rem;
+      }
+      .hud-state-label {
+        font-size: 0.72rem;
         color: #64748B;
-        letter-spacing: 0.05em;
+        transition: color 0.2s ease;
         white-space: nowrap;
-      }}
-      @keyframes cBlink {{ 0%, 49% {{ opacity: 1; }} 50%, 100% {{ opacity: 0; }} }}
-      @keyframes pGlow {{ 0%, 100% {{ transform: scale(0.95); opacity: 0.8; }} 50% {{ transform: scale(1.2); opacity: 1; }} }}
+      }
+      .typing-hud-bar.typing-active .hud-state-label {
+        color: #38BDF8;
+        font-weight: 700;
+      }
+      .cypher-display {
+        color: #F8FAFC;
+        font-weight: 600;
+        text-shadow: 0 0 8px rgba(56, 189, 248, 0.7);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .hud-equalizer {
+        display: flex;
+        align-items: flex-end;
+        gap: 2.5px;
+        height: 16px;
+        width: 32px;
+      }
+      .eq-bar {
+        width: 3px;
+        background: #38BDF8;
+        border-radius: 1px;
+        height: 3px;
+        transition: height 0.08s ease, background-color 0.2s ease;
+      }
+      .typing-hud-bar.typing-active .eq-bar {
+        background: #22D3EE;
+        box-shadow: 0 0 6px #22D3EE;
+      }
+      .hud-telemetry {
+        font-size: 0.68rem;
+        color: #94A3B8;
+        white-space: nowrap;
+        letter-spacing: 0.04em;
+        font-family: 'JetBrains Mono', Consolas, monospace;
+      }
+      .audio-btn {
+        background: rgba(139, 92, 246, 0.15);
+        border: 1px solid rgba(139, 92, 246, 0.40);
+        color: #C4B5FD;
+        padding: 0.16rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.65rem;
+        font-family: inherit;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        white-space: nowrap;
+      }
+      .audio-btn:hover {
+        background: rgba(139, 92, 246, 0.35);
+        color: #FFFFFF;
+        box-shadow: 0 0 10px rgba(139, 92, 246, 0.4);
+      }
+      @keyframes pGlow {
+        0%, 100% { transform: scale(0.95); opacity: 0.8; }
+        50% { transform: scale(1.25); opacity: 1; }
+      }
     </style>
     </head>
     <body>
-    <div class="radar-bar">
-      <div class="radar-tag">
-        <span class="radar-pulse"></span>
-        <span>⚡ NEURAL RADAR //</span>
+    <div id="typingHudBar" class="typing-hud-bar">
+      <div class="hud-status-group">
+        <span id="hudBeacon" class="hud-beacon"></span>
+        <span id="hudTitle" class="hud-title">⚡ NEURAL CYPHER LINK //</span>
       </div>
-      <div class="radar-query-wrap">
-        <span id="radarText" class="radar-query-text"></span><span class="radar-caret">█</span>
+      <div class="hud-stream">
+        <span id="hudState" class="hud-state-label">STANDBY • AWAITING INPUT</span>
+        <span id="cypherDisplay" class="cypher-display"></span>
       </div>
-      <div class="radar-sub">AUTOPILOT SUGGESTIONS</div>
+      <div class="hud-equalizer">
+        <div class="eq-bar" id="eq1"></div>
+        <div class="eq-bar" id="eq2"></div>
+        <div class="eq-bar" id="eq3"></div>
+        <div class="eq-bar" id="eq4"></div>
+        <div class="eq-bar" id="eq5"></div>
+        <div class="eq-bar" id="eq6"></div>
+      </div>
+      <div id="hudTelemetry" class="hud-telemetry">0 BYTES // IDLE</div>
+      <button id="btnAudio" class="audio-btn" onclick="toggleAudio()">🔊 SFX: ON</button>
     </div>
-    <script>
-      const queries = {queries_json};
-      let qIdx = 0;
-      let charIdx = 0;
-      let isDeleting = false;
-      const el = document.getElementById("radarText");
 
-      function typeLoop() {{
-        const current = queries[qIdx];
-        if (!isDeleting) {{
-          el.textContent = current.slice(0, charIdx + 1);
-          charIdx++;
-          if (charIdx === current.length) {{
-            isDeleting = true;
-            setTimeout(typeLoop, 2800);
-            return;
-          }}
-          setTimeout(typeLoop, 35 + Math.random() * 25);
-        }} else {{
-          el.textContent = current.slice(0, charIdx - 1);
-          charIdx--;
-          if (charIdx === 0) {{
-            isDeleting = false;
-            qIdx = (qIdx + 1) % queries.length;
-            setTimeout(typeLoop, 350);
-            return;
-          }}
-          setTimeout(typeLoop, 16);
-        }}
-      }}
-      typeLoop();
+    <script>
+      let audioEnabled = true;
+      let audioCtx = null;
+
+      function playSciFiChirp() {
+        if (!audioEnabled) return;
+        try {
+          if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          if (audioCtx.state === 'suspended') audioCtx.resume();
+
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(800 + Math.random() * 500, audioCtx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(320, audioCtx.currentTime + 0.035);
+
+          gain.gain.setValueAtTime(0.04, audioCtx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.035);
+
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+
+          osc.start();
+          osc.stop(audioCtx.currentTime + 0.035);
+        } catch (e) {}
+      }
+
+      function toggleAudio() {
+        audioEnabled = !audioEnabled;
+        document.getElementById("btnAudio").textContent = audioEnabled ? "🔊 SFX: ON" : "🔇 SFX: OFF";
+      }
+
+      const glyphs = ["0", "1", "Ξ", "Ψ", "Δ", "⬡", "⌘", "λ", "8", "F", "Ø", "§"];
+      const bar = document.getElementById("typingHudBar");
+      const hudState = document.getElementById("hudState");
+      const cypherDisplay = document.getElementById("cypherDisplay");
+      const hudTelemetry = document.getElementById("hudTelemetry");
+      const eqBars = [
+        document.getElementById("eq1"),
+        document.getElementById("eq2"),
+        document.getElementById("eq3"),
+        document.getElementById("eq4"),
+        document.getElementById("eq5"),
+        document.getElementById("eq6")
+      ];
+
+      let idleTimer = null;
+      let keyTimes = [];
+
+      function scrambleSnippet(text) {
+        if (!text) return "";
+        let out = "";
+        for (let i = 0; i < Math.min(text.length, 28); i++) {
+          if (Math.random() < 0.22) {
+            out += glyphs[Math.floor(Math.random() * glyphs.length)];
+          } else {
+            out += text[i];
+          }
+        }
+        return out;
+      }
+
+      function spawnParentSparks(inputEl) {
+        try {
+          const parentDoc = window.parent.document;
+          const rect = inputEl.getBoundingClientRect();
+          const numSparks = 3 + Math.floor(Math.random() * 3);
+          for (let i = 0; i < numSparks; i++) {
+            const spark = parentDoc.createElement("div");
+            spark.className = "cyber-spark-particle";
+            const x = rect.left + 20 + Math.random() * (Math.min(rect.width * 0.7, 400));
+            const y = rect.top + 8 + Math.random() * (rect.height - 16);
+            spark.style.left = x + "px";
+            spark.style.top = y + "px";
+
+            const angle = (Math.random() * Math.PI) - (Math.PI / 2);
+            const dist = 25 + Math.random() * 35;
+            const tx = Math.cos(angle) * dist;
+            const ty = -Math.abs(Math.sin(angle) * dist) - 10;
+            spark.style.setProperty("--tx", tx + "px");
+            spark.style.setProperty("--ty", ty + "px");
+
+            if (Math.random() > 0.5) {
+              spark.style.background = "#A78BFA";
+              spark.style.boxShadow = "0 0 10px #A78BFA, 0 0 20px #EC4899";
+            }
+
+            parentDoc.body.appendChild(spark);
+            setTimeout(() => {
+              if (spark.parentNode) spark.parentNode.removeChild(spark);
+            }, 550);
+          }
+        } catch (e) {}
+      }
+
+      function onUserTyping(inputEl) {
+        playSciFiChirp();
+        bar.classList.add("typing-active");
+        hudState.textContent = "SYNAPSE TRANSMITTING:";
+
+        const val = inputEl.value || "";
+        cypherDisplay.textContent = "[" + scrambleSnippet(val) + "█]";
+
+        const now = Date.now();
+        keyTimes.push(now);
+        keyTimes = keyTimes.filter(t => now - t < 2500);
+        const wpm = Math.round((keyTimes.length / 5) * 24);
+
+        hudTelemetry.textContent = `${val.length} CHARS // ${wpm} WPM`;
+
+        eqBars.forEach(b => {
+          b.style.height = (4 + Math.random() * 12) + "px";
+        });
+
+        inputEl.classList.add("cyber-typing-active");
+        spawnParentSparks(inputEl);
+
+        clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => {
+          bar.classList.remove("typing-active");
+          hudState.textContent = val.length > 0 ? "BUFFER LOCKED // READY TO SEARCH" : "STANDBY";
+          cypherDisplay.textContent = val.length > 0 ? `[${val}]` : "";
+          hudTelemetry.textContent = `${val.length} CHARS // READY`;
+          eqBars.forEach(b => b.style.height = "3px");
+          inputEl.classList.remove("cyber-typing-active");
+        }, 550);
+      }
+
+      function connectParentInput() {
+        try {
+          const parentDoc = window.parent.document;
+          const input = parentDoc.querySelector("div[data-testid='stTextInput'] input") || parentDoc.querySelector("input");
+          if (input && !input.__cyberListenerAttached) {
+            input.__cyberListenerAttached = true;
+            input.addEventListener("input", () => onUserTyping(input));
+            input.addEventListener("keydown", () => onUserTyping(input));
+            input.addEventListener("focus", () => {
+              bar.classList.add("typing-active");
+              if (!input.value) hudState.textContent = "OPERATOR LINK ACTIVE // AWAITING KEYSTROKES...";
+            });
+            input.addEventListener("blur", () => {
+              if (!input.value) {
+                bar.classList.remove("typing-active");
+                hudState.textContent = "STANDBY • AWAITING INPUT";
+                cypherDisplay.textContent = "";
+              }
+            });
+          }
+        } catch (e) {}
+      }
+
+      connectParentInput();
+      setInterval(connectParentInput, 1000);
     </script>
     </body>
     </html>
     """
-    components.html(radar_html, height=48)
+    components.html(hud_html, height=52)
 
 
 def render_futuristic_direct_answer(active_res: SearchPipelineResult):
@@ -467,8 +666,8 @@ def render_search_view(pipeline: SearchPipeline, db: CrawlDatabase):
         </div>
     """, unsafe_allow_html=True)
 
-    # Holographic Cyber-Prompt Radar Bar
-    render_cyber_prompt_radar()
+    # Real-Time Interactive Cyber Typing HUD (activates exclusively while user types)
+    render_interactive_cyber_typing_hud()
 
     col_q, col_btn = st.columns([5.5, 1.5])
 
