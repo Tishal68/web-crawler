@@ -18,6 +18,14 @@ class TestPlaywrightBrowserManager:
         avail = PlaywrightBrowserManager.is_available()
         assert isinstance(avail, bool)
 
+    def test_availability_caching(self):
+        """is_available should use cache on successive calls and reset when requested."""
+        PlaywrightBrowserManager.reset_availability_cache()
+        avail1 = PlaywrightBrowserManager.is_available()
+        avail2 = PlaywrightBrowserManager.is_available()
+        assert avail1 == avail2
+        PlaywrightBrowserManager.reset_availability_cache()
+
     def test_ssrf_pre_navigation_blocked(self):
         """Private/internal IP targets must be blocked before any browser navigation."""
         manager = PlaywrightBrowserManager()
@@ -76,3 +84,12 @@ class TestPlaywrightBrowserManager:
             assert mock_bm.close.called
             assert len(crawler.page_results) == 1
             assert crawler.page_results[0].title == "Test SPA"
+
+    def test_crawler_explicit_close_method(self):
+        """WebCrawler.close() must safely dispose browser manager and session."""
+        mock_bm = MagicMock()
+        crawler = WebCrawler(config=CrawlConfig(start_url="https://example.com"))
+        crawler.browser_manager = mock_bm
+        crawler.close()
+        assert mock_bm.close.called
+        assert crawler.browser_manager is None

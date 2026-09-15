@@ -91,6 +91,15 @@ class TestCliArgumentParser:
         assert args.keyword == "transformer"
         assert args.quiet is True
 
+    def test_render_js_flags(self):
+        parser = build_parser()
+        args = parser.parse_args(["--render-js", "--js-wait", "3.5"])
+        assert args.render_js is True
+        assert args.js_wait == 3.5
+
+        args_alias = parser.parse_args(["--js"])
+        assert args_alias.render_js is True
+
 
 class TestPromptHelpers:
     def test_prompt_bool_parsing(self):
@@ -189,6 +198,8 @@ class TestExportFunctionality:
             data = json.load(f)
         assert len(data["pages"]) == 1
         assert data["pages"][0]["url"] == "https://example.com/api"
+        assert data["pages"][0]["URL"] == "https://example.com/api"
+        assert data["pages"][0]["Title"] == "API Page"
 
 
 class TestCliExecution:

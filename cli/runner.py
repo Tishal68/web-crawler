@@ -144,8 +144,8 @@ def export_results(
         elif norm_path.lower().endswith(".json"):
             data: Dict[str, Any] = {
                 "summary": summary.to_dict() if summary else {},
-                "pages": [p.__dict__ for p in pages],
-                "failures": [f.to_dict() for f in failures],
+                "pages": [{**p.__dict__, **p.to_dict()} for p in pages],
+                "failures": [{**f.__dict__, **f.to_dict()} for f in failures],
             }
             with open(norm_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
@@ -180,6 +180,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--respect-robots", dest="respect_robots", action="store_true", default=True, help="Respect robots.txt policies (default: True)")
     parser.add_argument("--ignore-robots", dest="respect_robots", action="store_false", help="Ignore robots.txt policies")
     parser.add_argument("--render-js", "--js", dest="render_js", action="store_true", default=False, help="Render JavaScript using headless browser (Playwright) for SPAs / React / Hotstar")
+    parser.add_argument("--js-wait", type=float, default=2.0, help="Delay in seconds to wait for dynamic JavaScript hydration (default: 2.0)")
     parser.add_argument("--answer", "-a", dest="answer_mode", action="store_true", help="Execute web search, evidence extraction, and grounded answer retrieval")
     parser.add_argument("--output", "-o", type=str, default=None, help="Output results file (.csv or .json)")
     parser.add_argument("--quiet", "-q", "--minimal", dest="quiet", action="store_true", help="Minimal mode: just crawl without visualizations, tree, or tables")
@@ -346,6 +347,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         search_query=search_query,
         keyword_filter=args.keyword,
         render_js=render_js,
+        js_wait_time=getattr(args, "js_wait", 2.0),
     )
 
     if not args.quiet and not args.json:
@@ -413,13 +415,15 @@ def main(argv: Optional[List[str]] = None) -> int:
             max_depth_reached=max((p.depth for p in crawler.page_results), default=0),
             search_query=search_query,
         )
+    finally:
+        crawler.close()
 
     # Output presentation based on mode
     if args.json:
         data: Dict[str, Any] = {
             "summary": summary.to_dict() if summary else {},
-            "pages": [p.to_dict() for p in crawler.page_results],
-            "failures": [f.to_dict() for f in crawler.failures],
+            "pages": [{**p.__dict__, **p.to_dict()} for p in crawler.page_results],
+            "failures": [{**f.__dict__, **f.to_dict()} for f in crawler.failures],
         }
         print(json.dumps(data, indent=2))
     elif args.quiet:

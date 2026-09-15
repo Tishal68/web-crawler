@@ -24,6 +24,50 @@ except ImportError:
     PlaywrightTimeoutError = Exception
 
 
+_AVAILABLE_CACHE: Optional[bool] = None
+
+
+def _has_installed_chromium() -> bool:
+    """Fast check for installed Chromium or system browser without starting Playwright driver."""
+    import os
+    import glob
+
+    candidates = []
+    local_app_data = os.environ.get("LOCALAPPDATA", "")
+    if local_app_data:
+        candidates.append(os.path.join(local_app_data, "ms-playwright", "chromium*", "**", "chrome.exe"))
+
+    user_home = os.path.expanduser("~")
+    candidates.append(os.path.join(user_home, "Library", "Caches", "ms-playwright", "chromium*", "**", "chrome"))
+    candidates.append(os.path.join(user_home, ".cache", "ms-playwright", "chromium*", "**", "chrome"))
+
+    for pattern in candidates:
+        try:
+            matches = glob.glob(pattern, recursive=True)
+            if any(os.path.isfile(m) for m in matches):
+                return True
+        except Exception:
+            pass
+
+    system_paths = [
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        "/usr/bin/google-chrome",
+        "/usr/bin/chromium-browser",
+        "/usr/bin/chromium",
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    ]
+    for p in system_paths:
+        try:
+            if os.path.isfile(p):
+                return True
+        except Exception:
+            pass
+
+    return False
+
+
 class PlaywrightBrowserManager:
     """
     Manages a persistent headless Chromium browser instance across a crawl session.
@@ -48,16 +92,34 @@ class PlaywrightBrowserManager:
         self._context: Optional[BrowserContext] = None
         self._is_active: bool = False
 
-    @staticmethod
-    def is_available() -> bool:
+    @classmethod
+    def is_available(cls, force_refresh: bool = False) -> bool:
         """Verify if Playwright library and a usable browser engine are installed."""
+        global _AVAILABLE_CACHE
+        if not force_refresh and _AVAILABLE_CACHE is not None:
+            return _AVAILABLE_CACHE
+
         if not _PLAYWRIGHT_INSTALLED:
+            _AVAILABLE_CACHE = False
             return False
+
+        if _has_installed_chromium():
+            _AVAILABLE_CACHE = True
+            return True
+
         try:
             with sync_playwright() as p:
-                return p.chromium.executable_path is not None
+                _AVAILABLE_CACHE = p.chromium.executable_path is not None
+                return _AVAILABLE_CACHE
         except Exception:
+            _AVAILABLE_CACHE = False
             return False
+
+    @classmethod
+    def reset_availability_cache(cls) -> None:
+        """Reset cached availability state (useful for unit testing)."""
+        global _AVAILABLE_CACHE
+        _AVAILABLE_CACHE = None
 
     def start(self) -> bool:
         """
@@ -192,6 +254,16 @@ class PlaywrightBrowserManager:
             except Exception:
                 pass
             self._playwright = None
+            try:
+                time.sleep(0.08)
+            except Exception:
+                pass
 
         self._is_active = False
         logger.info("Playwright browser instance closed cleanly.")
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            pass

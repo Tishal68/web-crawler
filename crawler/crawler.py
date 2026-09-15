@@ -4,6 +4,8 @@ duplicate detection, robots.txt compliance, robust error handling, streamed reso
 and event streaming.
 """
 
+from __future__ import annotations
+
 import collections
 import logging
 import time
@@ -76,6 +78,32 @@ class WebCrawler:
         self.failures: List[CrawlFailure] = []
         self.graph_edges: List[Tuple[str, str, int]] = []  # (source_url, target_url, target_depth)
         self.browser_manager: Optional[PlaywrightBrowserManager] = None
+
+    def close(self) -> None:
+        """Safely clean up persistent resources including browser processes and HTTP session."""
+        if self.browser_manager is not None:
+            try:
+                self.browser_manager.close()
+            except Exception:
+                pass
+            self.browser_manager = None
+        if self.session is not None:
+            try:
+                self.session.close()
+            except Exception:
+                pass
+
+    def __enter__(self) -> WebCrawler:
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.close()
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            pass
 
     def normalize_url(self, url: str, base_url: Optional[str] = None) -> Optional[str]:
         """Normalize URL and remove fragments."""

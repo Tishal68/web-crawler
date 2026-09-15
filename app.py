@@ -289,6 +289,10 @@ def render_deep_crawler_mode():
             enable_sqlite = st.checkbox("Persist Session in SQLite", value=True, key="chk_sqlite")
         with col_c4:
             render_js = st.checkbox("⚡ Render JavaScript (SPAs / Hotstar)", value=False, key="chk_render_js", help="Use headless Chromium browser to execute client-side JavaScript for modern React/Vue SPAs like Hotstar or Netflix.")
+            if render_js:
+                from crawler.browser_fetcher import PlaywrightBrowserManager
+                if not PlaywrightBrowserManager.is_available():
+                    st.warning("⚠️ Headless browser engine not detected. Crawl will fall back to HTTP.")
 
     # Live Crawl Execution
     if btn_start:
