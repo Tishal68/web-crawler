@@ -928,6 +928,204 @@ def apply_custom_styles():
             color: #FFFFFF !important;
             box-shadow: 0 0 16px rgba(34, 211, 238, 0.25) !important;
         }
+
+        /* === FUTURISTIC SEARCH & TYPEWRITER CYBER STYLES === */
+        div[data-testid="stTextInput"] input {
+            background: rgba(11, 17, 32, 0.88) !important;
+            border: 1px solid rgba(56, 189, 248, 0.40) !important;
+            border-radius: 8px !important;
+            color: #F8FAFC !important;
+            font-family: 'JetBrains Mono', monospace !important;
+            font-size: 0.92rem !important;
+            padding: 0.72rem 1rem !important;
+            caret-color: #38BDF8 !important;
+            box-shadow: 0 0 15px rgba(56, 189, 248, 0.15), inset 0 0 10px rgba(0, 0, 0, 0.6) !important;
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        }
+        div[data-testid="stTextInput"] input:focus {
+            border-color: #38BDF8 !important;
+            box-shadow: 0 0 25px rgba(56, 189, 248, 0.45), 0 0 45px rgba(139, 92, 246, 0.25), inset 0 0 12px rgba(15, 23, 42, 0.6) !important;
+            background: rgba(15, 23, 42, 0.95) !important;
+        }
+        div[data-testid="stTextInput"] input::placeholder {
+            color: #64748B !important;
+            font-family: 'JetBrains Mono', monospace !important;
+        }
+
+        /* Animated Cyber Prompt Deck Bar */
+        .cyber-deck-bar {
+            background: linear-gradient(90deg, rgba(56, 189, 248, 0.08) 0%, rgba(139, 92, 246, 0.06) 100%), rgba(11, 16, 32, 0.80);
+            border: 1px solid rgba(56, 189, 248, 0.25);
+            border-left: 3px solid #38BDF8;
+            border-radius: 8px;
+            padding: 0.55rem 0.9rem;
+            margin-bottom: 0.5rem;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .cyber-deck-bar:hover {
+            border-color: rgba(56, 189, 248, 0.55);
+            box-shadow: 0 0 20px rgba(56, 189, 248, 0.25);
+            background: rgba(15, 23, 42, 0.92);
+        }
+        .cyber-deck-tag {
+            font-size: 0.68rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            color: #38BDF8;
+            font-family: 'JetBrains Mono', monospace;
+            white-space: nowrap;
+        }
+        .cyber-deck-active-text {
+            font-size: 0.84rem;
+            color: #E2E8F0;
+            font-family: 'JetBrains Mono', monospace;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex-grow: 1;
+        }
+        .cyber-deck-caret {
+            color: #38BDF8;
+            font-weight: 900;
+            text-shadow: 0 0 10px #38BDF8, 0 0 20px rgba(56, 189, 248, 0.8);
+            animation: cyberCursorBlink 0.85s infinite;
+        }
+
+        /* Futuristic Direct Answer Terminal Card */
+        .cyber-terminal-card {
+            background: linear-gradient(135deg, rgba(56, 189, 248, 0.08) 0%, rgba(139, 92, 246, 0.05) 100%), rgba(11, 16, 32, 0.90);
+            border: 1px solid rgba(56, 189, 248, 0.35);
+            border-left: 4px solid #38BDF8;
+            border-radius: 10px;
+            padding: 1.2rem 1.5rem;
+            margin-top: 1rem;
+            margin-bottom: 1.2rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(56, 189, 248, 0.04);
+            position: relative;
+            overflow: hidden;
+        }
+        .cyber-terminal-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(56, 189, 248, 0.18);
+            padding-bottom: 0.55rem;
+            margin-bottom: 0.85rem;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        .cyber-pulse-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #22C55E;
+            box-shadow: 0 0 10px #22C55E, 0 0 20px rgba(34, 197, 94, 0.6);
+            margin-right: 0.45rem;
+            animation: pulseGlow 1.5s infinite;
+        }
+        .cyber-terminal-tag {
+            font-size: 0.72rem;
+            font-weight: 800;
+            color: #38BDF8;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+        .cyber-stat-pill {
+            font-size: 0.68rem;
+            font-family: 'JetBrains Mono', monospace;
+            background: rgba(56, 189, 248, 0.12);
+            border: 1px solid rgba(56, 189, 248, 0.30);
+            color: #38BDF8;
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            font-weight: 700;
+        }
+        .cyber-action-btn {
+            font-size: 0.68rem;
+            font-family: 'JetBrains Mono', monospace;
+            background: rgba(139, 92, 246, 0.15);
+            border: 1px solid rgba(139, 92, 246, 0.45);
+            color: #C4B5FD;
+            padding: 0.15rem 0.55rem;
+            border-radius: 4px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .cyber-action-btn:hover {
+            background: rgba(139, 92, 246, 0.30);
+            color: #FFFFFF;
+            box-shadow: 0 0 12px rgba(139, 92, 246, 0.4);
+        }
+        .cyber-typewriter-body {
+            display: inline;
+            font-size: 1.05rem;
+            color: #F8FAFC;
+            line-height: 1.7;
+            font-weight: 500;
+            letter-spacing: 0.01em;
+        }
+        .cyber-cursor {
+            display: inline-block;
+            color: #38BDF8;
+            font-weight: 900;
+            text-shadow: 0 0 8px #38BDF8, 0 0 16px rgba(56, 189, 248, 0.6);
+            animation: cyberCursorBlink 0.85s infinite;
+            margin-left: 2px;
+            vertical-align: baseline;
+        }
+        .cyber-citation-badge {
+            background: rgba(56, 189, 248, 0.22);
+            border: 1px solid rgba(56, 189, 248, 0.45);
+            color: #38BDF8;
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 0.76rem;
+            margin: 0 0.15rem;
+            font-family: 'JetBrains Mono', monospace;
+            display: inline-block;
+            transition: all 0.2s ease;
+        }
+        .cyber-citation-badge:hover {
+            background: rgba(56, 189, 248, 0.40);
+            color: #FFFFFF;
+            box-shadow: 0 0 12px rgba(56, 189, 248, 0.5);
+            transform: translateY(-1px);
+        }
+        .cyber-terminal-bottom {
+            display: flex;
+            justify-content: flex-start;
+            gap: 1rem;
+            margin-top: 1rem;
+            padding-top: 0.65rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            flex-wrap: wrap;
+        }
+        .cyber-foot-tag {
+            font-size: 0.64rem;
+            font-family: 'JetBrains Mono', monospace;
+            color: #64748B;
+            letter-spacing: 0.05em;
+        }
+
+        @keyframes cyberCursorBlink {
+            0%, 49% { opacity: 1; }
+            50%, 100% { opacity: 0; }
+        }
+        @keyframes pulseGlow {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            50% { transform: scale(1.15); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.8; }
+        }
         </style>
     """, unsafe_allow_html=True)
 

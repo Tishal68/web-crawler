@@ -21,8 +21,123 @@ if TYPE_CHECKING:
     from answer.citations import Citation
 
 
+def _clean_passage_text(text: str) -> str:
+    """Normalize text and strip web footnote citations, Wikipedia markers, and spacing glitches."""
+    if not text:
+        return ""
+    # Strip citation brackets like [1], [note 2], [a], [12]
+    t = re.sub(r"\[(?:\d+|note\s*\d+|[a-zA-Z])\]", "", text)
+    # Strip Wikipedia jump markers and footnote headers like ^ "Title" or ↑ "Nature"
+    t = re.sub(r"[\^↑]\s*\"[^\"]*\"", "", t)
+    t = re.sub(r"[\^↑]", "", t)
+    # Replace unicode non-breaking spaces
+    t = t.replace("\u00a0", " ").replace("\u200b", "")
+    # Fix spacing before punctuation (e.g., "Nature , " -> "Nature, ", "computing . " -> "computing. ")
+    t = re.sub(r"\s+([,.;:!?])", r"\1", t)
+    # Clean multiple whitespaces
+    t = re.sub(r"\s+", " ", t).strip()
+    return t
+
+
+def _score_sentence_for_intent(
+    text: str,
+    query_lower: str,
+    query_tokens: set[str],
+    analysis: Optional[Any] = None,
+) -> float:
+    """Score a candidate sentence based on information density, keyword matching, and question intent."""
+    score = 1.0
+    text_lower = text.lower()
+    text_tokens = set(re.findall(r"\b[a-z0-9+#.-]+\b", text_lower))
+
+    # 1. Keyword coverage
+    overlap = query_tokens.intersection(text_tokens)
+    if query_tokens:
+        score += (len(overlap) / len(query_tokens)) * 4.0
+
+    # 2. Exact subphrase match
+    q_words = query_lower.split()
+    if len(q_words) >= 2:
+        for n in range(min(4, len(q_words)), 1, -1):
+            subphrase = " ".join(q_words[:n])
+            if subphrase in text_lower:
+                score += 2.5
+                break
+
+    # 3. Intent-Specific Bonuses
+    # Who / Creator intent
+    if any(w in query_lower for w in ("who", "creator", "created", "inventor", "founder", "author")):
+        if any(c in text_lower for c in ("created by", "developed by", "invented by", "founded by", "authored by", "designed by", "conceived by")):
+            score += 5.5
+        if any(c in text_lower for c in ("guido van rossum", "creator", "founder", "author", "inventor")):
+            score += 3.5
+
+    # When / Date / History intent
+    if any(w in query_lower for w in ("when", "year", "date", "history", "timeline", "origin")):
+        if re.search(r"\b(?:19|20)\d{2}\b", text):
+            score += 4.0
+        if any(d in text_lower for d in ("first released", "released in", "introduced in", "established in", "founded in", "published in")):
+            score += 3.5
+
+    # Latest / Breakthrough / Advances intent
+    if any(w in query_lower for w in ("latest", "recent", "developments", "breakthrough", "advances", "new")):
+        if any(y in text for y in ("2024", "2025", "2026")):
+            score += 4.0
+        if any(b in text_lower for b in ("demonstrated", "breakthrough", "recent", "announced", "achieved", "advancement", "modular", "scalability")):
+            score += 3.0
+
+    # Metrics / Density / Technical Specs intent
+    if any(w in query_lower for w in ("density", "timeline", "specs", "capacity", "benchmark", "qubits", "speed")):
+        if re.search(r"\b\d+(?:\.\d+)?\s*(?:wh/kg|mah/g|qubits?|ghz|nm|mhz|%|x|gb|mb)\b", text_lower):
+            score += 4.5
+
+    # Definitional bonus for general concepts
+    if any(df in text_lower for df in ("is a ", "is an ", "refers to ", "is defined as ", "serves as ")):
+        score += 1.8
+
+    # 4. Length penalty / bonus
+    if len(text) < 45:
+        score -= 2.0
+    elif 70 <= len(text) <= 220:
+        score += 1.5
+    elif len(text) > 320:
+        score -= 1.0
+
+    # 5. Penalize boilerplate / low-entropy sentences
+    if any(bp in text_lower for bp in ("wikipedia", "wikimedia", "jump to navigation", "edit this page", "main article:", "see also", "external links", "all rights reserved", "terms of use", "privacy policy", "cookie policy", "sign up")):
+        score -= 10.0
+
+    return score
+
+
+def _categorize_key_finding(text: str) -> str:
+    """Determine an insightful bold category label for a key finding sentence."""
+    t_low = text.lower()
+    if any(w in t_low for w in ("created", "developed by", "founded", "invented", "authored", "conceived", "guido")):
+        return "Genesis & Creator"
+    if any(w in t_low for w in ("released", "timeline", "milestone", "announced", "published in", "in 19", "in 20")):
+        return "Milestones & Timeline"
+    if any(w in t_low for w in ("syntax", "typing", "readability", "paradigm", "design philosophy")):
+        return "Language Design & Syntax"
+    if any(w in t_low for w in ("c or c++", "extensible", "extension", "library", "modules", "packages", "ecosystem", "tools")):
+        return "Extensibility & Ecosystem"
+    if any(w in t_low for w in ("interpreter", "runtime", "compiler", "data structure", "virtual machine")):
+        return "Runtime & Architecture"
+    if re.search(r"\b\d+(?:\.\d+)?\s*(?:wh/kg|qubits?|ghz|nm|%|x|gb|mb)\b", t_low):
+        return "Technical Specifications"
+    if any(w in t_low for w in ("architecture", "modular", "algorithm", "mechanism", "network", "framework")):
+        return "System Architecture"
+    if any(w in t_low for w in ("standard", "nist", "security", "commercial", "industry", "adoption")):
+        return "Standardization & Impact"
+    if any(w in t_low for w in ("recent", "breakthrough", "advance", "demonstrated", "achieved")):
+        return "Latest Breakthrough"
+    if any(w in t_low for w in ("application", "scripting", "machine learning", "scientific", "web development")):
+        return "Applications & Ecosystem"
+    return "Core Insight"
+
+
 class DeterministicResearchSynthesizer:
-    """Produces structured, fully cited research reports from extracted evidence without requiring an LLM API key."""
+    """Produces structured, fully cited, multi-source research reports from extracted evidence."""
 
     def synthesize(
         self,
@@ -45,46 +160,101 @@ class DeterministicResearchSynthesizer:
             )
 
         url_to_cit: Dict[str, Citation] = {c.url: c for c in sources}
+        query_lower = query.lower().strip()
+        query_tokens = set(re.findall(r"\b[a-z0-9+#.-]+\b", query_lower))
 
-        # 1. Deduplicate and collect top informative sentences
+        # 1. Deduplicate, clean, and score all candidate sentences
         sentences: List[Dict[str, Any]] = []
-        seen = set()
+        seen_fingerprints: set[str] = set()
 
         for p in passages:
             cit = url_to_cit.get(p.source_url)
             cit_id = cit.index if cit else 1
-            raw_sents = re.split(r"(?<=[.!?])\s+", p.text)
+            cleaned_passage_text = _clean_passage_text(p.text)
+            raw_sents = re.split(r"(?<=[.!?])\s+", cleaned_passage_text)
+
             for raw in raw_sents:
                 clean = " ".join(raw.split()).strip()
-                if len(clean) < 35 or len(clean.split()) < 6:
+                if len(clean) < 35 or len(clean.split()) < 5:
                     continue
-                # Skip promotional boilerplate
-                if any(bad in clean.lower() for bad in ("click here", "sign up", "all rights reserved", "terms of use", "privacy policy")):
+                # Skip promotional or navigational boilerplate
+                if any(bad in clean.lower() for bad in (
+                    "click here", "sign up", "all rights reserved", "terms of use",
+                    "privacy policy", "cookie policy", "this tutorial", "in this tutorial",
+                    "this chapter", "this article discusses", "in this section", "this guide is"
+                )):
                     continue
-                fp = clean[:70].lower()
-                if fp in seen:
+
+                fp = clean[:65].lower()
+                if fp in seen_fingerprints:
                     continue
-                seen.add(fp)
+                seen_fingerprints.add(fp)
+
+                score = _score_sentence_for_intent(clean, query_lower, query_tokens, analysis)
+
                 sentences.append({
                     "text": clean,
                     "source_id": cit_id,
                     "heading": p.heading_context or "General Overview",
                     "passage": p,
+                    "score": score,
                 })
 
         if not sentences:
+            fallback_text = _clean_passage_text(passages[0].text[:300].strip())
             sentences = [{
-                "text": passages[0].text[:300].strip(),
+                "text": fallback_text,
                 "source_id": 1,
                 "heading": "General Overview",
                 "passage": passages[0],
+                "score": 1.0,
             }]
 
-        # 2. Build direct answer with citations
-        top_sents = sentences[:3]
+        # 2. Build multi-source executive direct answer
+        all_sorted = sorted(sentences, key=lambda x: x["score"], reverse=True)
+
+        # Sentence 1: Best overall answering sentence across all sources
+        s1 = all_sorted[0] if all_sorted else None
+        if s1 and re.match(r"^(?:It|He|She|They)\s+(?:was|is|were)\b", s1["text"], flags=re.I):
+            subject = None
+            if getattr(analysis, "entities", None):
+                subject = analysis.entities[0]
+            elif query_tokens:
+                non_stopwords = [w for w in query.split() if w.lower() not in ("who", "what", "when", "where", "why", "how", "and", "the", "is", "was", "created", "created?")]
+                if non_stopwords:
+                    subject = " ".join(non_stopwords[:2]).title()
+            if subject:
+                s1_text = re.sub(r"^(?:It|He|She|They)\s+", f"{subject} ", s1["text"], flags=re.I)
+                s1 = dict(s1)
+                s1["text"] = s1_text
+
+        # Sentence 2: Top-scoring sentence from an independent source
+        s2 = None
+        if s1:
+            diff_sources = [s for s in all_sorted if s["source_id"] != s1["source_id"]]
+            if diff_sources:
+                s2 = diff_sources[0]
+
+        # Sentence 3: Top-scoring sentence from a third independent source (or next best distinct insight)
+        s3 = None
+        used_sids = {s["source_id"] for s in (s1, s2) if s}
+        third_sources = [s for s in all_sorted if s["source_id"] not in used_sids]
+        if third_sources:
+            s3 = third_sources[0]
+        else:
+            used_fps = {s["text"][:45].lower() for s in (s1, s2) if s}
+            # Also add original unmutated s1 text
+            if all_sorted:
+                used_fps.add(all_sorted[0]["text"][:45].lower())
+            remaining = [s for s in all_sorted if s["text"][:45].lower() not in used_fps]
+            if remaining:
+                s3 = remaining[0]
+
+        selected_direct = [s for s in (s1, s2, s3) if s is not None]
+
         direct_parts = []
         direct_claims = []
-        for s in top_sents:
+        for s in selected_direct:
             sid = s["source_id"]
             txt = s["text"]
             if not txt.endswith((".", "!", "?")):
@@ -94,16 +264,49 @@ class DeterministicResearchSynthesizer:
 
         direct_answer = " ".join(direct_parts)
 
-        # 3. Build Key Findings with Citations
-        key_findings = []
-        for s in sentences[:5]:
-            t = s["text"]
-            if not t.endswith((".", "!", "?")):
-                t += "."
-            sid = s["source_id"]
-            key_findings.append(f"{t} [{sid}]")
+        # 3. Build High-Density Key Findings with Categorization Tags
+        direct_fps = {s["text"][:45].lower() for s in selected_direct}
+        if all_sorted:
+            direct_fps.add(all_sorted[0]["text"][:45].lower())
+        candidate_findings = [s for s in all_sorted if s["text"][:45].lower() not in direct_fps]
 
-        # 4. Group into structured thematic sections (prioritize facet clusters if available)
+        # Ensure findings draw across multiple sources and topics
+        key_findings = []
+        seen_finding_sids = set()
+        seen_finding_fps = set()
+
+        for s in candidate_findings:
+            sid = s["source_id"]
+            txt = s["text"]
+            fp = txt[:50].lower()
+            if fp in seen_finding_fps:
+                continue
+            seen_finding_fps.add(fp)
+
+            if not txt.endswith((".", "!", "?")):
+                txt += "."
+
+            category = _categorize_key_finding(txt)
+            key_findings.append(f"**{category}**: {txt} [{sid}]")
+            seen_finding_sids.add(sid)
+
+            if len(key_findings) >= 5:
+                break
+
+        # Fallback if too few candidate findings
+        if len(key_findings) < 3:
+            for s in all_sorted:
+                txt = s["text"]
+                if not txt.endswith((".", "!", "?")):
+                    txt += "."
+                cat = _categorize_key_finding(txt)
+                entry = f"**{cat}**: {txt} [{s['source_id']}]"
+                if entry not in key_findings:
+                    key_findings.append(entry)
+                if len(key_findings) >= 4:
+                    break
+
+        # 4. Group into structured thematic sections (prioritizing facet clusters if available)
         sections: List[SynthesizedSection] = []
         if coverage_report and getattr(coverage_report, "clusters", None):
             for cluster in coverage_report.clusters:
@@ -113,7 +316,8 @@ class DeterministicResearchSynthesizer:
                     for cp in cluster.passages:
                         c_cit = url_to_cit.get(cp.source_url)
                         c_sid = c_cit.index if c_cit else 1
-                        raw_c_sents = re.split(r"(?<=[.!?])\s+", cp.text)
+                        cleaned_c_text = _clean_passage_text(cp.text)
+                        raw_c_sents = re.split(r"(?<=[.!?])\s+", cleaned_c_text)
                         for rcs in raw_c_sents:
                             c_clean = " ".join(rcs.split()).strip()
                             if len(c_clean) >= 30 and len(c_clean.split()) >= 5:
@@ -134,7 +338,7 @@ class DeterministicResearchSynthesizer:
 
         if not sections:
             sections_by_heading: Dict[str, List[Dict[str, Any]]] = {}
-            for s in sentences[1:14]:
+            for s in all_sorted[len(selected_direct):len(selected_direct) + 12]:
                 h = s["heading"]
                 if h in ("Search Snippet", "General Overview", ""):
                     h = "Core Findings & Technical Details"
@@ -169,9 +373,9 @@ class DeterministicResearchSynthesizer:
 
         # 6. Generate intelligent follow-up questions
         follow_ups = [
-            f"What are the most recent updates on {query}?",
-            f"How does {query} compare with leading alternatives?",
-            f"What are the main technical challenges or limitations of {query}?",
+            f"What are the most recent 2025-2026 developments in {query}?",
+            f"How does {query} compare with leading industry benchmarks?",
+            f"What are the primary technical roadblocks and future milestones for {query}?",
         ]
 
         return SynthesizedResearchResponse(

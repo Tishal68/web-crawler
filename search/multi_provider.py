@@ -67,6 +67,12 @@ class MultiEngineSearchProvider(SearchProvider):
         "schema.org", "w3.org",
     }
 
+    DICTIONARY_DOMAINS = {
+        "merriam-webster.com", "dictionary.cambridge.org", "thesaurus.com",
+        "dictionary.com", "collinsdictionary.com", "vocabulary.com", "wiktionary.org",
+        "thefreedictionary.com",
+    }
+
     def __init__(self, timeout: float = 7.0, session: Optional[requests.Session] = None):
         self.timeout = timeout
         self.session = session or requests.Session()
@@ -114,6 +120,11 @@ class MultiEngineSearchProvider(SearchProvider):
             if not dom or any(dom == b or dom.endswith("." + b) for b in self.SEARCH_ENGINE_DOMAINS):
                 return False
 
+            # Filter out single-word dictionary/thesaurus definition pages for multi-word research queries
+            if len(q_stems) >= 2 and any(dom == d or dom.endswith("." + d) for d in self.DICTIONARY_DOMAINS):
+                if not any(k in clean_query.lower() for k in ("definition", "synonym", "meaning", "thesaurus")):
+                    return False
+
             # Strict relevance check against query keywords to eliminate off-target spam or dropped terms
             if require_relevance and q_stems:
                 cand_text = f"{title} {snippet} {norm}".lower()
@@ -147,12 +158,16 @@ class MultiEngineSearchProvider(SearchProvider):
             return True
 
         # 1. Bing Live Open Web Search
-        # Query full query, and if query has > 3 words, also query concise core subject
         queries_to_bing = [clean_query]
+        stripped_q = re.sub(r"^(?:who|what|when|where|why|how)\s+(?:is|are|was|were|did|does|do|created|made)\s+", "", clean_query, flags=re.I).strip()
+        stripped_q = re.sub(r"\s+and\s+(?:when|where|why|how)$", "", stripped_q, flags=re.I).strip()
+        if stripped_q and stripped_q.lower() != clean_query.lower():
+            queries_to_bing.append(stripped_q)
+
         sig_words = [w for w in clean_query.split() if w.lower() not in STOPWORDS]
         if len(sig_words) > 3:
             core_query = " ".join(sig_words[:4])
-            if core_query.lower() != clean_query.lower():
+            if core_query.lower() != clean_query.lower() and core_query.lower() != stripped_q.lower():
                 queries_to_bing.append(core_query)
 
         for b_q in queries_to_bing:

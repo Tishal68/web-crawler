@@ -5,27 +5,28 @@ grounded answers, explainable confidence badges, contradiction alerts, and verif
 """
 
 import html
+import json
 import re
 import time
 from typing import Optional, List
 import streamlit as st
+import streamlit.components.v1 as components
 
 from search.pipeline import SearchPipeline, SearchPipelineResult
 from crawler.database import CrawlDatabase
 
 
 def format_text_with_citations(raw_text: str) -> str:
-    """Safely escape text for HTML and format [1], [2] citations into interactive clickable badges."""
+    """Safely escape text for HTML, parse bold tags, and format [1], [2] citations into interactive clickable badges."""
     if not raw_text:
         return ""
     escaped = html.escape(raw_text)
+    # Convert markdown bold **text** to styled <b>
+    escaped = re.sub(r"\*\*(.+?)\*\*", r"<b style='color: #F8FAFC; font-weight: 700;'>\1</b>", escaped)
     def _rep(m):
         sid = m.group(1)
         return (
-            f'<a href="#source-{sid}" style="background: rgba(56, 189, 248, 0.22); '
-            f'border: 1px solid rgba(56, 189, 248, 0.45); color: #38BDF8; padding: 0.1rem 0.4rem; '
-            f'border-radius: 4px; text-decoration: none; font-weight: 700; font-size: 0.76rem; '
-            f'margin: 0 0.15rem; font-family: \'JetBrains Mono\', monospace;">[{sid}]</a>'
+            f'<a href="#source-{sid}" target="_parent" class="cyber-citation-badge">[{sid}]</a>'
         )
     return re.sub(r"\[(\d+)\]", _rep, escaped)
 
@@ -38,6 +39,415 @@ SEARCH_PRESETS = {
     "⚡ Solid-State Batteries": "solid-state battery commercialization timeline and density",
     "🐍 Python History & Creator": "who created Python programming language and when",
 }
+
+RADAR_QUERIES = list(SEARCH_PRESETS.values())
+
+
+def render_cyber_prompt_radar():
+    """Renders the Holographic Cyber-Prompt Matrix bar cycling through research prompts with a neon block cursor."""
+    queries_json = json.dumps(RADAR_QUERIES)
+    radar_html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+    <meta charset="utf-8">
+    <style>
+      * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+      body {{
+        background: transparent;
+        font-family: 'JetBrains Mono', Consolas, 'Courier New', monospace;
+        overflow: hidden;
+      }}
+      .radar-bar {{
+        background: linear-gradient(90deg, rgba(56, 189, 248, 0.10) 0%, rgba(139, 92, 246, 0.08) 100%), rgba(11, 16, 32, 0.92);
+        border: 1px solid rgba(56, 189, 248, 0.35);
+        border-left: 3px solid #38BDF8;
+        border-radius: 8px;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 0.9rem;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+      }}
+      .radar-tag {{
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        color: #38BDF8;
+        white-space: nowrap;
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+      }}
+      .radar-pulse {{
+        display: inline-block;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #22C55E;
+        box-shadow: 0 0 8px #22C55E, 0 0 14px rgba(34, 197, 94, 0.6);
+        animation: pGlow 1.5s infinite;
+      }}
+      .radar-query-wrap {{
+        flex-grow: 1;
+        margin: 0 0.8rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 0.84rem;
+        color: #E2E8F0;
+      }}
+      .radar-query-text {{
+        color: #F8FAFC;
+        font-weight: 500;
+      }}
+      .radar-caret {{
+        color: #38BDF8;
+        font-weight: 900;
+        text-shadow: 0 0 8px #38BDF8, 0 0 16px rgba(56, 189, 248, 0.7);
+        animation: cBlink 0.8s infinite;
+        margin-left: 2px;
+      }}
+      .radar-sub {{
+        font-size: 0.65rem;
+        color: #64748B;
+        letter-spacing: 0.05em;
+        white-space: nowrap;
+      }}
+      @keyframes cBlink {{ 0%, 49% {{ opacity: 1; }} 50%, 100% {{ opacity: 0; }} }}
+      @keyframes pGlow {{ 0%, 100% {{ transform: scale(0.95); opacity: 0.8; }} 50% {{ transform: scale(1.2); opacity: 1; }} }}
+    </style>
+    </head>
+    <body>
+    <div class="radar-bar">
+      <div class="radar-tag">
+        <span class="radar-pulse"></span>
+        <span>⚡ NEURAL RADAR //</span>
+      </div>
+      <div class="radar-query-wrap">
+        <span id="radarText" class="radar-query-text"></span><span class="radar-caret">█</span>
+      </div>
+      <div class="radar-sub">AUTOPILOT SUGGESTIONS</div>
+    </div>
+    <script>
+      const queries = {queries_json};
+      let qIdx = 0;
+      let charIdx = 0;
+      let isDeleting = false;
+      const el = document.getElementById("radarText");
+
+      function typeLoop() {{
+        const current = queries[qIdx];
+        if (!isDeleting) {{
+          el.textContent = current.slice(0, charIdx + 1);
+          charIdx++;
+          if (charIdx === current.length) {{
+            isDeleting = true;
+            setTimeout(typeLoop, 2800);
+            return;
+          }}
+          setTimeout(typeLoop, 35 + Math.random() * 25);
+        }} else {{
+          el.textContent = current.slice(0, charIdx - 1);
+          charIdx--;
+          if (charIdx === 0) {{
+            isDeleting = false;
+            qIdx = (qIdx + 1) % queries.length;
+            setTimeout(typeLoop, 350);
+            return;
+          }}
+          setTimeout(typeLoop, 16);
+        }}
+      }}
+      typeLoop();
+    </script>
+    </body>
+    </html>
+    """
+    components.html(radar_html, height=48)
+
+
+def render_futuristic_direct_answer(active_res: SearchPipelineResult):
+    """Renders the Direct Grounded Answer in a futuristic cyberpunk streaming typewriter terminal."""
+    answer = active_res.answer
+    if not answer or not answer.direct_answer:
+        return
+
+    confidence = active_res.confidence
+    verification = active_res.verification
+    conf_score = confidence.score if confidence else 0.65
+    ind_domains = len(verification.get("independent_domains", [])) if verification else len(active_res.ranked_results)
+    citations_count = len(answer.citations)
+    elapsed = active_res.total_elapsed
+
+    formatted_direct_answer = format_text_with_citations(answer.direct_answer)
+    safe_json_answer = json.dumps(formatted_direct_answer)
+
+    # Calculate optimal component container height based on length
+    char_len = len(answer.direct_answer)
+    est_lines = max(2, char_len // 52 + 1)
+    calc_height = max(195, min(480, 115 + est_lines * 32))
+
+    terminal_html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+    <meta charset="utf-8">
+    <style>
+      * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+      body {{
+        background: transparent;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        color: #F8FAFC;
+        overflow-y: auto;
+        padding: 0.15rem 0;
+      }}
+      .cyber-terminal-box {{
+        background: linear-gradient(135deg, rgba(56, 189, 248, 0.08) 0%, rgba(139, 92, 246, 0.05) 100%), rgba(11, 16, 32, 0.95);
+        border: 1px solid rgba(56, 189, 248, 0.40);
+        border-left: 4px solid #38BDF8;
+        border-radius: 10px;
+        padding: 1.1rem 1.4rem;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 20px rgba(56, 189, 248, 0.12), inset 0 0 15px rgba(56, 189, 248, 0.03);
+        position: relative;
+      }}
+      .terminal-top {{
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid rgba(56, 189, 248, 0.20);
+        padding-bottom: 0.55rem;
+        margin-bottom: 0.85rem;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+      }}
+      .terminal-tag-group {{
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-size: 0.72rem;
+        font-weight: 800;
+        color: #38BDF8;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        font-family: 'JetBrains Mono', Consolas, monospace;
+      }}
+      .pulse-dot {{
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #22C55E;
+        box-shadow: 0 0 10px #22C55E, 0 0 18px rgba(34, 197, 94, 0.6);
+        animation: pGlow 1.5s infinite;
+      }}
+      .terminal-controls {{
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        flex-wrap: wrap;
+      }}
+      .stat-pill {{
+        font-size: 0.68rem;
+        font-family: 'JetBrains Mono', Consolas, monospace;
+        background: rgba(56, 189, 248, 0.12);
+        border: 1px solid rgba(56, 189, 248, 0.30);
+        color: #38BDF8;
+        padding: 0.15rem 0.5rem;
+        border-radius: 4px;
+        font-weight: 700;
+      }}
+      .action-btn {{
+        font-size: 0.68rem;
+        font-family: 'JetBrains Mono', Consolas, monospace;
+        background: rgba(139, 92, 246, 0.18);
+        border: 1px solid rgba(139, 92, 246, 0.45);
+        color: #C4B5FD;
+        padding: 0.2rem 0.6rem;
+        border-radius: 4px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }}
+      .action-btn:hover {{
+        background: rgba(139, 92, 246, 0.35);
+        color: #FFFFFF;
+        box-shadow: 0 0 12px rgba(139, 92, 246, 0.4);
+      }}
+      .terminal-body {{
+        font-size: 1.05rem;
+        color: #F8FAFC;
+        line-height: 1.7;
+        font-weight: 500;
+        letter-spacing: 0.01em;
+        min-height: 2.8rem;
+      }}
+      .cyber-cursor {{
+        display: inline-block;
+        color: #38BDF8;
+        font-weight: 900;
+        text-shadow: 0 0 8px #38BDF8, 0 0 18px rgba(56, 189, 248, 0.7);
+        animation: cBlink 0.8s infinite;
+        margin-left: 2px;
+        vertical-align: baseline;
+      }}
+      .cyber-citation-badge {{
+        background: rgba(56, 189, 248, 0.22);
+        border: 1px solid rgba(56, 189, 248, 0.45);
+        color: #38BDF8;
+        padding: 0.1rem 0.42rem;
+        border-radius: 4px;
+        text-decoration: none;
+        font-weight: 700;
+        font-size: 0.76rem;
+        margin: 0 0.2rem;
+        font-family: 'JetBrains Mono', Consolas, monospace;
+        display: inline-block;
+        transition: all 0.2s ease;
+      }}
+      .cyber-citation-badge:hover {{
+        background: rgba(56, 189, 248, 0.45);
+        color: #FFFFFF;
+        box-shadow: 0 0 12px rgba(56, 189, 248, 0.6);
+      }}
+      .terminal-bottom {{
+        display: flex;
+        justify-content: flex-start;
+        gap: 1.2rem;
+        margin-top: 0.95rem;
+        padding-top: 0.65rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+        flex-wrap: wrap;
+      }}
+      .foot-tag {{
+        font-size: 0.65rem;
+        font-family: 'JetBrains Mono', Consolas, monospace;
+        color: #64748B;
+        letter-spacing: 0.05em;
+      }}
+      @keyframes cBlink {{ 0%, 49% {{ opacity: 1; }} 50%, 100% {{ opacity: 0; }} }}
+      @keyframes pGlow {{ 0%, 100% {{ transform: scale(0.95); opacity: 0.8; }} 50% {{ transform: scale(1.2); opacity: 1; }} }}
+    </style>
+    </head>
+    <body>
+    <div class="cyber-terminal-box">
+      <div class="terminal-top">
+        <div class="terminal-tag-group">
+          <span id="statusPulse" class="pulse-dot"></span>
+          <span id="statusText">🎯 GROUNDED DIRECT ANSWER // NEURAL STREAM</span>
+        </div>
+        <div class="terminal-controls">
+          <span class="stat-pill">Score: {conf_score:.2f}</span>
+          <span class="stat-pill">⚡ {citations_count} Sources</span>
+          <button id="btnInstant" class="action-btn" onclick="showInstant()">⚡ Instant View</button>
+          <button id="btnReplay" class="action-btn" onclick="replayStream()">↺ Replay</button>
+        </div>
+      </div>
+      <div id="rawContent" style="display: none;"></div>
+      <div class="terminal-body">
+        <span id="terminalText"></span><span id="cyberCursor" class="cyber-cursor">█</span>
+      </div>
+      <div class="terminal-bottom">
+        <span class="foot-tag">🔒 PROBABILISTIC GROUNDING (NEVER 100%)</span>
+        <span class="foot-tag">🌐 {ind_domains} INDEPENDENT DOMAINS VERIFIED</span>
+        <span class="foot-tag">⏱️ {elapsed:.2f}s TOTAL PIPELINE LATENCY</span>
+      </div>
+    </div>
+    <script>
+      const formattedHtml = {safe_json_answer};
+      const raw = document.getElementById("rawContent");
+      const term = document.getElementById("terminalText");
+      const cursor = document.getElementById("cyberCursor");
+      const statusTxt = document.getElementById("statusText");
+      let timer = null;
+
+      raw.innerHTML = formattedHtml;
+
+      function buildSteps() {{
+        const steps = [];
+        function traverse(node, container) {{
+          if (node.nodeType === Node.TEXT_NODE) {{
+            const txt = node.nodeValue;
+            for (let i = 0; i < txt.length; i++) {{
+              steps.push({{ type: 'char', char: txt[i], container: container }});
+            }}
+          }} else if (node.nodeType === Node.ELEMENT_NODE) {{
+            if (node.tagName === 'A' && node.classList.contains('cyber-citation-badge')) {{
+              const clone = node.cloneNode(true);
+              steps.push({{ type: 'node', node: clone, container: container }});
+            }} else if (node.tagName === 'BR') {{
+              const clone = node.cloneNode(false);
+              steps.push({{ type: 'node', node: clone, container: container }});
+            }} else {{
+              const clone = node.cloneNode(false);
+              container.appendChild(clone);
+              for (let child of node.childNodes) {{
+                traverse(child, clone);
+              }}
+            }}
+          }}
+        }}
+        for (let child of raw.childNodes) {{
+          traverse(child, term);
+        }}
+        return steps;
+      }}
+
+      function finish() {{
+        if (timer) clearTimeout(timer);
+        term.innerHTML = raw.innerHTML;
+        cursor.style.display = 'none';
+        statusTxt.textContent = '✓ SYNTHESIS COMPLETE // GROUNDED EVIDENCE READY';
+      }}
+
+      function showInstant() {{
+        finish();
+      }}
+
+      function replayStream() {{
+        if (timer) clearTimeout(timer);
+        term.innerHTML = '';
+        cursor.style.display = 'inline-block';
+        statusTxt.textContent = '🎯 GROUNDED DIRECT ANSWER // NEURAL STREAM';
+
+        try {{
+          const steps = buildSteps();
+          let idx = 0;
+          function step() {{
+            if (idx >= steps.length) {{
+              finish();
+              return;
+            }}
+            const item = steps[idx];
+            if (item.type === 'char') {{
+              item.container.appendChild(document.createTextNode(item.char));
+            }} else if (item.type === 'node') {{
+              item.container.appendChild(item.node);
+            }}
+            idx++;
+            let delay = 16;
+            if (item.type === 'char') {{
+              if (item.char === '.' || item.char === '!' || item.char === '?') delay = 130;
+              else if (item.char === ',' || item.char === ';') delay = 50;
+            }}
+            timer = setTimeout(step, delay);
+          }}
+          step();
+        }} catch (err) {{
+          finish();
+        }}
+      }}
+
+      replayStream();
+    </script>
+    <noscript>
+      <div style="font-size: 1.05rem; color: #F8FAFC; line-height: 1.7;">{formatted_direct_answer}</div>
+    </noscript>
+    </body>
+    </html>
+    """
+    components.html(terminal_html, height=calc_height)
 
 
 def render_search_view(pipeline: SearchPipeline, db: CrawlDatabase):
@@ -56,6 +466,9 @@ def render_search_view(pipeline: SearchPipeline, db: CrawlDatabase):
             </div>
         </div>
     """, unsafe_allow_html=True)
+
+    # Holographic Cyber-Prompt Radar Bar
+    render_cyber_prompt_radar()
 
     col_q, col_btn = st.columns([5.5, 1.5])
 
@@ -279,19 +692,9 @@ def render_search_view(pipeline: SearchPipeline, db: CrawlDatabase):
             for rat in confidence.rationales:
                 st.markdown(f"▸ {rat}")
 
-    # 5. Direct Answer Hero Card
+    # 5. Direct Answer Hero Card (Futuristic Cyber Typewriter Terminal)
     if answer:
-        formatted_direct_answer = format_text_with_citations(answer.direct_answer)
-        st.markdown(f"""
-            <div style="background: linear-gradient(135deg, rgba(56, 189, 248, 0.08) 0%, rgba(139, 92, 246, 0.05) 100%), rgba(15, 23, 42, 0.85); border: 1px solid rgba(56, 189, 248, 0.35); border-left: 4px solid #38BDF8; border-radius: 10px; padding: 1.2rem 1.5rem; margin-top: 1rem; margin-bottom: 1.2rem; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);">
-                <div style="font-size: 0.72rem; font-weight: 800; color: #38BDF8; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.4rem;">
-                    🎯 GROUNDED DIRECT ANSWER
-                </div>
-                <div style="font-size: 1.05rem; color: #F8FAFC; line-height: 1.65; font-weight: 500;">
-                    {formatted_direct_answer}
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
+        render_futuristic_direct_answer(active_res)
 
     # 5b. Deep Research & Thematic Synthesis Sections
     if answer and getattr(answer, "structured_sections", None):
@@ -393,7 +796,7 @@ def render_search_view(pipeline: SearchPipeline, db: CrawlDatabase):
                 </div>
             """, unsafe_allow_html=True)
 
-    # 7. Key Findings & Supporting Evidence
+    # 7. Key Findings & Supporting Evidence (Cyber Categorized Cards)
     if answer and answer.key_findings:
         st.markdown("""
             <div style="font-size: 0.76rem; font-weight: 800; letter-spacing: 0.08em; color: #22D3EE; text-transform: uppercase; margin-top: 1rem; margin-bottom: 0.5rem;">
@@ -401,12 +804,29 @@ def render_search_view(pipeline: SearchPipeline, db: CrawlDatabase):
             </div>
         """, unsafe_allow_html=True)
         for finding in answer.key_findings:
-            formatted_finding = format_text_with_citations(finding)
-            st.markdown(f"""
-                <div style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(255, 255, 255, 0.08); border-left: 3px solid #8B5CF6; border-radius: 6px; padding: 0.75rem 1rem; margin-bottom: 0.5rem; font-size: 0.86rem; color: #E2E8F0; line-height: 1.5;">
-                    {formatted_finding}
-                </div>
-            """, unsafe_allow_html=True)
+            # Check if finding starts with categorized bold label: **Category**: rest
+            cat_match = re.match(r"^\*\*([^*]+)\*\*:\s*(.+)$", finding)
+            if cat_match:
+                cat_name = cat_match.group(1).strip()
+                cat_body = cat_match.group(2).strip()
+                formatted_body = format_text_with_citations(cat_body)
+                st.markdown(f"""
+                    <div class="kpi-card" style="padding: 0.8rem 1.1rem; margin-bottom: 0.6rem; border-left: 3px solid #8B5CF6; display: flex; align-items: flex-start; gap: 0.65rem; flex-wrap: wrap;">
+                        <span style="background: rgba(139, 92, 246, 0.18); border: 1px solid rgba(139, 92, 246, 0.45); color: #C4B5FD; padding: 0.15rem 0.55rem; border-radius: 4px; font-weight: 800; font-size: 0.70rem; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; white-space: nowrap; margin-top: 0.1rem;">
+                            {html.escape(cat_name)}
+                        </span>
+                        <div style="font-size: 0.88rem; color: #E2E8F0; line-height: 1.55; flex-grow: 1;">
+                            {formatted_body}
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+            else:
+                formatted_finding = format_text_with_citations(finding)
+                st.markdown(f"""
+                    <div class="kpi-card" style="padding: 0.8rem 1.1rem; margin-bottom: 0.6rem; border-left: 3px solid #8B5CF6; font-size: 0.88rem; color: #E2E8F0; line-height: 1.55;">
+                        {formatted_finding}
+                    </div>
+                """, unsafe_allow_html=True)
 
     # 8. Sources & Verified References
     citations = answer.citations if answer else []
