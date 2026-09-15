@@ -40,6 +40,27 @@ DICTIONARY_DOMAINS = {
     "wordreference.com",
 }
 
+STOPWORDS = {
+    "the", "and", "for", "with", "about", "that", "this", "from", "what", "which",
+    "how", "why", "are", "were", "been", "their", "have", "has", "had", "will",
+    "would", "could", "should", "does", "into", "over", "more", "most", "some",
+    "such", "than", "then", "very", "also", "just", "between", "under", "these",
+    "those", "there", "where", "when", "while", "after", "before", "each", "all"
+}
+
+
+def extract_query_stems(text: str) -> set[str]:
+    """Extract normalized word stems (length >= 3, excluding stopwords) from text."""
+    if not text:
+        return set()
+    words = re.findall(r"\b[a-z0-9]{3,}\b", text.lower())
+    stems = set()
+    for w in words:
+        if w not in STOPWORDS:
+            stem = re.sub(r"(ing|ed|es|s)$", "", w)
+            stems.add(stem if len(stem) >= 3 else w)
+    return stems
+
 
 def decode_bing_u(u_val: str) -> Optional[str]:
     """
@@ -134,8 +155,9 @@ def discover_search_urls(
     domain_counts: Dict[str, int] = {}
 
     is_multi_word = len(clean_query.split()) > 1
+    q_stems = extract_query_stems(clean_query)
 
-    def try_add_candidate(raw_url: str) -> bool:
+    def try_add_candidate(raw_url: str, title: str = "", require_relevance: bool = True) -> bool:
         """Validate, normalize, check SSRF, and add candidate if domain diversity allows."""
         if not raw_url:
             return False
@@ -205,7 +227,10 @@ def discover_search_urls(
                         target_url = href
 
                     if target_url:
-                        try_add_candidate(target_url)
+                        h2_text = h2.get_text().strip() if h2 else ""
+                        caption_div = li.find("div", class_="b_caption") or li.find("p")
+                        snippet_text = caption_div.get_text().strip() if caption_div else ""
+                        try_add_candidate(target_url, title=f"{h2_text} {snippet_text}")
                         if len(discovered_urls) >= max_results:
                             break
         except Exception:
@@ -295,13 +320,51 @@ def discover_search_urls(
             )
             if wiki_resp.status_code == 200:
                 data = wiki_resp.json()
+                found_titles = []
                 for item in data.get("query", {}).get("search", []):
                     title = item.get("title")
                     if title:
                         article_url = f"https://en.wikipedia.org/wiki/{urllib.parse.quote(title.replace(' ', '_'))}"
-                        try_add_candidate(article_url)
+                        if try_add_candidate(article_url, title=title):
+                            found_titles.append(title)
                         if len(discovered_urls) >= max_results:
                             break
+
+                # Extract external primary source references cited on the page
+                EXCLUDED_EXT = {
+                    "archive.org", "web.archive.org", "facebook.com", "twitter.com",
+                    "x.com", "instagram.com", "linkedin.com", "pinterest.com",
+                    "tiktok.com", "youtube.com", "youtu.be", "google.com",
+                }
+                for f_title in found_titles[:2]:
+                    if len(discovered_urls) >= max_results:
+                        break
+                    try:
+                        ext_params = {
+                            "action": "query",
+                            "prop": "extlinks",
+                            "titles": f_title,
+                            "ellimit": 50,
+                            "format": "json",
+                        }
+                        ext_resp = get_fn(wiki_api, params=ext_params, headers={"User-Agent": "WebCrawlerAnalytics/2.0"}, timeout=timeout)
+                        if ext_resp.status_code == 200:
+                            pages = ext_resp.json().get("query", {}).get("pages", {})
+                            for _, pdata in pages.items():
+                                for el in pdata.get("extlinks", []):
+                                    raw_link = el.get("*", "")
+                                    if raw_link.startswith("//"):
+                                        raw_link = "https:" + raw_link
+                                    if not is_valid_url(raw_link) or not raw_link.startswith(("http://", "https://")):
+                                        continue
+                                    dom = get_domain(raw_link).lower()
+                                    if any(bad in dom for bad in EXCLUDED_EXT):
+                                        continue
+                                    try_add_candidate(raw_link, title=f_title, require_relevance=False)
+                                    if len(discovered_urls) >= max_results:
+                                        break
+                    except Exception:
+                        pass
         except Exception:
             pass
 

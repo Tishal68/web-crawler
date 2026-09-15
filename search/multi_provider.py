@@ -240,12 +240,12 @@ class MultiEngineSearchProvider(SearchProvider):
                                 break
 
                     # Mine high-authority external primary sources referenced by top Wikipedia pages
-                    AUTHORITATIVE_EXT_DOMAINS = (
-                        ".gov", ".edu", "nasa.gov", "esa.int", "stsci.edu",
-                        "webbtelescope.org", "nature.com", "science.org", "arxiv.org",
-                        "nist.gov", "cern.ch", "acm.org", "ieee.org"
-                    )
-                    for w_title in wiki_titles[:2]:
+                    EXCLUDED_EXT_DOMAINS = {
+                        "archive.org", "web.archive.org", "facebook.com", "twitter.com",
+                        "x.com", "instagram.com", "linkedin.com", "pinterest.com",
+                        "tiktok.com", "youtube.com", "youtu.be", "google.com",
+                    }
+                    for w_title in wiki_titles[:3]:
                         if len(results) >= num_results:
                             break
                         try:
@@ -253,7 +253,7 @@ class MultiEngineSearchProvider(SearchProvider):
                                 "action": "query",
                                 "prop": "extlinks",
                                 "titles": w_title,
-                                "ellimit": 40,
+                                "ellimit": 50,
                                 "format": "json",
                             }
                             ext_resp = self.session.get(wiki_api, params=ext_params, headers={"User-Agent": "WebResearchEngine/2.0"}, timeout=self.timeout)
@@ -264,11 +264,15 @@ class MultiEngineSearchProvider(SearchProvider):
                                         raw_link = el.get("*", "")
                                         if raw_link.startswith("//"):
                                             raw_link = "https:" + raw_link
-                                        if any(dom in raw_link.lower() for dom in AUTHORITATIVE_EXT_DOMAINS):
-                                            link_title = f"{w_title} - Primary Reference ({get_domain(raw_link)})"
-                                            try_add(link_title, raw_link, f"Primary authoritative reference from {w_title}", require_relevance=False)
-                                            if len(results) >= num_results:
-                                                break
+                                        if not is_valid_url(raw_link) or not raw_link.startswith(("http://", "https://")):
+                                            continue
+                                        dom = get_domain(raw_link).lower()
+                                        if any(bad in dom for bad in EXCLUDED_EXT_DOMAINS):
+                                            continue
+                                        link_title = f"{w_title} - Source ({dom})"
+                                        try_add(link_title, raw_link, f"Primary web source and citations from {w_title}", require_relevance=False)
+                                        if len(results) >= num_results:
+                                            break
                         except Exception:
                             pass
             except Exception:
