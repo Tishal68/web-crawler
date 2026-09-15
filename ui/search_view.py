@@ -43,12 +43,12 @@ SEARCH_PRESETS = {
 RADAR_QUERIES = list(SEARCH_PRESETS.values())
 
 
-def render_interactive_cyber_typing_hud():
-    """Renders an interactive Cyber Typing HUD that reacts exclusively WHILE the user is typing into the search input.
-    Provides live keystroke particle sparks, real-time matrix cypher decryption, animated equalizer audio visualizers,
-    WPM velocity telemetry, dynamic border plasma surge, and optional sci-fi synthesizer sound effects.
+def render_cyber_word_animator():
+    """Renders the Kinetic Word Animator & Web Audio SFX Engine.
+    Animates individual typed characters and words directly inside the search input box
+    with neon popping glyphs, word glow blooms, moving cyan block cursor, and tactile sci-fi sound effects.
     """
-    hud_html = """
+    animator_html = """
     <!DOCTYPE html>
     <html>
     <head>
@@ -60,311 +60,307 @@ def render_interactive_cyber_typing_hud():
         font-family: 'JetBrains Mono', Consolas, monospace;
         overflow: hidden;
         color: #F8FAFC;
-      }
-      .typing-hud-bar {
-        background: linear-gradient(90deg, rgba(56, 189, 248, 0.08) 0%, rgba(139, 92, 246, 0.06) 100%), rgba(11, 16, 32, 0.92);
-        border: 1px solid rgba(56, 189, 248, 0.35);
-        border-left: 3px solid #38BDF8;
-        border-radius: 8px;
-        height: 48px;
         display: flex;
+        justify-content: flex-end;
         align-items: center;
-        justify-content: space-between;
-        padding: 0 0.9rem;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
-        gap: 0.75rem;
-        transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        height: 28px;
+        padding-right: 0.2rem;
       }
-      .typing-hud-bar.typing-active {
-        border-color: #38BDF8;
-        background: linear-gradient(90deg, rgba(56, 189, 248, 0.16) 0%, rgba(139, 92, 246, 0.12) 100%), rgba(15, 23, 42, 0.98);
-        box-shadow: 0 0 25px rgba(56, 189, 248, 0.45), inset 0 0 12px rgba(56, 189, 248, 0.15);
-      }
-      .hud-status-group {
-        display: flex;
-        align-items: center;
-        gap: 0.45rem;
-        white-space: nowrap;
-      }
-      .hud-beacon {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: #64748B;
-        box-shadow: 0 0 6px #64748B;
-        transition: all 0.2s ease;
-      }
-      .typing-hud-bar.typing-active .hud-beacon {
-        background: #22C55E;
-        box-shadow: 0 0 10px #22C55E, 0 0 20px rgba(34, 197, 94, 0.9);
-        animation: pGlow 0.9s infinite;
-      }
-      .hud-title {
-        font-size: 0.72rem;
-        font-weight: 800;
-        letter-spacing: 0.08em;
-        color: #38BDF8;
-        white-space: nowrap;
-      }
-      .hud-stream {
-        flex-grow: 1;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        font-size: 0.82rem;
-        color: #E2E8F0;
-        display: flex;
-        align-items: center;
-        gap: 0.4rem;
-        margin: 0 0.5rem;
-      }
-      .hud-state-label {
-        font-size: 0.72rem;
-        color: #64748B;
-        transition: color 0.2s ease;
-        white-space: nowrap;
-      }
-      .typing-hud-bar.typing-active .hud-state-label {
-        color: #38BDF8;
-        font-weight: 700;
-      }
-      .cypher-display {
-        color: #F8FAFC;
-        font-weight: 600;
-        text-shadow: 0 0 8px rgba(56, 189, 248, 0.7);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-      .hud-equalizer {
-        display: flex;
-        align-items: flex-end;
-        gap: 2.5px;
-        height: 16px;
-        width: 32px;
-      }
-      .eq-bar {
-        width: 3px;
-        background: #38BDF8;
-        border-radius: 1px;
-        height: 3px;
-        transition: height 0.08s ease, background-color 0.2s ease;
-      }
-      .typing-hud-bar.typing-active .eq-bar {
-        background: #22D3EE;
-        box-shadow: 0 0 6px #22D3EE;
-      }
-      .hud-telemetry {
-        font-size: 0.68rem;
-        color: #94A3B8;
-        white-space: nowrap;
-        letter-spacing: 0.04em;
-        font-family: 'JetBrains Mono', Consolas, monospace;
-      }
-      .audio-btn {
+      .audio-pill {
         background: rgba(139, 92, 246, 0.15);
         border: 1px solid rgba(139, 92, 246, 0.40);
         color: #C4B5FD;
-        padding: 0.16rem 0.5rem;
+        padding: 0.18rem 0.55rem;
         border-radius: 4px;
-        font-size: 0.65rem;
+        font-size: 0.68rem;
         font-family: inherit;
         font-weight: 700;
         cursor: pointer;
         transition: all 0.2s ease;
-        white-space: nowrap;
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
       }
-      .audio-btn:hover {
+      .audio-pill:hover {
         background: rgba(139, 92, 246, 0.35);
         color: #FFFFFF;
         box-shadow: 0 0 10px rgba(139, 92, 246, 0.4);
       }
-      @keyframes pGlow {
-        0%, 100% { transform: scale(0.95); opacity: 0.8; }
-        50% { transform: scale(1.25); opacity: 1; }
-      }
     </style>
     </head>
     <body>
-    <div id="typingHudBar" class="typing-hud-bar">
-      <div class="hud-status-group">
-        <span id="hudBeacon" class="hud-beacon"></span>
-        <span id="hudTitle" class="hud-title">⚡ NEURAL CYPHER LINK //</span>
-      </div>
-      <div class="hud-stream">
-        <span id="hudState" class="hud-state-label">STANDBY • AWAITING INPUT</span>
-        <span id="cypherDisplay" class="cypher-display"></span>
-      </div>
-      <div class="hud-equalizer">
-        <div class="eq-bar" id="eq1"></div>
-        <div class="eq-bar" id="eq2"></div>
-        <div class="eq-bar" id="eq3"></div>
-        <div class="eq-bar" id="eq4"></div>
-        <div class="eq-bar" id="eq5"></div>
-        <div class="eq-bar" id="eq6"></div>
-      </div>
-      <div id="hudTelemetry" class="hud-telemetry">0 BYTES // IDLE</div>
-      <button id="btnAudio" class="audio-btn" onclick="toggleAudio()">🔊 SFX: ON</button>
-    </div>
+    <button id="btnAudioToggle" class="audio-pill" onclick="toggleAudio()">
+      <span id="audioIcon">🔊</span>
+      <span id="audioLabel">KEYSTROKE SFX: ON</span>
+    </button>
 
     <script>
       let audioEnabled = true;
       let audioCtx = null;
 
-      function playSciFiChirp() {
+      function getAudioContext() {
+        if (!audioCtx) {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        return audioCtx;
+      }
+
+      function playSciFiSound(type = 'char') {
         if (!audioEnabled) return;
         try {
-          if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-          if (audioCtx.state === 'suspended') audioCtx.resume();
+          const ctx = getAudioContext();
+          const now = ctx.currentTime;
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
 
-          const osc = audioCtx.createOscillator();
-          const gain = audioCtx.createGain();
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(800 + Math.random() * 500, audioCtx.currentTime);
-          osc.frequency.exponentialRampToValueAtTime(320, audioCtx.currentTime + 0.035);
+          if (type === 'space') {
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(220, now);
+            osc.frequency.exponentialRampToValueAtTime(80, now + 0.055);
 
-          gain.gain.setValueAtTime(0.04, audioCtx.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.035);
+            gain.gain.setValueAtTime(0.08, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.055);
 
-          osc.connect(gain);
-          gain.connect(audioCtx.destination);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.055);
+          } else if (type === 'backspace') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(950, now);
+            osc.frequency.exponentialRampToValueAtTime(320, now + 0.04);
 
-          osc.start();
-          osc.stop(audioCtx.currentTime + 0.035);
+            gain.gain.setValueAtTime(0.05, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.04);
+          } else if (type === 'enter') {
+            const osc2 = ctx.createOscillator();
+            const gain2 = ctx.createGain();
+            osc.type = 'sine';
+            osc2.type = 'sine';
+            osc.frequency.setValueAtTime(520, now);
+            osc2.frequency.setValueAtTime(1040, now);
+
+            gain.gain.setValueAtTime(0.06, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+            gain2.gain.setValueAtTime(0.04, now);
+            gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc2.connect(gain2);
+            gain2.connect(ctx.destination);
+
+            osc.start(now);
+            osc.stop(now + 0.15);
+            osc2.start(now);
+            osc2.stop(now + 0.15);
+          } else {
+            osc.type = 'sine';
+            const baseFreq = 850 + Math.random() * 450;
+            osc.frequency.setValueAtTime(baseFreq, now);
+            osc.frequency.exponentialRampToValueAtTime(300, now + 0.035);
+
+            gain.gain.setValueAtTime(0.045, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.035);
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.035);
+          }
         } catch (e) {}
       }
 
       function toggleAudio() {
         audioEnabled = !audioEnabled;
-        document.getElementById("btnAudio").textContent = audioEnabled ? "🔊 SFX: ON" : "🔇 SFX: OFF";
+        document.getElementById("audioIcon").textContent = audioEnabled ? "🔊" : "🔇";
+        document.getElementById("audioLabel").textContent = audioEnabled ? "KEYSTROKE SFX: ON" : "KEYSTROKE SFX: OFF";
       }
 
-      const glyphs = ["0", "1", "Ξ", "Ψ", "Δ", "⬡", "⌘", "λ", "8", "F", "Ø", "§"];
-      const bar = document.getElementById("typingHudBar");
-      const hudState = document.getElementById("hudState");
-      const cypherDisplay = document.getElementById("cypherDisplay");
-      const hudTelemetry = document.getElementById("hudTelemetry");
-      const eqBars = [
-        document.getElementById("eq1"),
-        document.getElementById("eq2"),
-        document.getElementById("eq3"),
-        document.getElementById("eq4"),
-        document.getElementById("eq5"),
-        document.getElementById("eq6")
-      ];
-
-      let idleTimer = null;
-      let keyTimes = [];
-
-      function scrambleSnippet(text) {
-        if (!text) return "";
-        let out = "";
-        for (let i = 0; i < Math.min(text.length, 28); i++) {
-          if (Math.random() < 0.22) {
-            out += glyphs[Math.floor(Math.random() * glyphs.length)];
-          } else {
-            out += text[i];
-          }
-        }
-        return out;
-      }
-
-      function spawnParentSparks(inputEl) {
-        try {
-          const parentDoc = window.parent.document;
-          const rect = inputEl.getBoundingClientRect();
-          const numSparks = 3 + Math.floor(Math.random() * 3);
-          for (let i = 0; i < numSparks; i++) {
-            const spark = parentDoc.createElement("div");
-            spark.className = "cyber-spark-particle";
-            const x = rect.left + 20 + Math.random() * (Math.min(rect.width * 0.7, 400));
-            const y = rect.top + 8 + Math.random() * (rect.height - 16);
-            spark.style.left = x + "px";
-            spark.style.top = y + "px";
-
-            const angle = (Math.random() * Math.PI) - (Math.PI / 2);
-            const dist = 25 + Math.random() * 35;
-            const tx = Math.cos(angle) * dist;
-            const ty = -Math.abs(Math.sin(angle) * dist) - 10;
-            spark.style.setProperty("--tx", tx + "px");
-            spark.style.setProperty("--ty", ty + "px");
-
-            if (Math.random() > 0.5) {
-              spark.style.background = "#A78BFA";
-              spark.style.boxShadow = "0 0 10px #A78BFA, 0 0 20px #EC4899";
-            }
-
-            parentDoc.body.appendChild(spark);
-            setTimeout(() => {
-              if (spark.parentNode) spark.parentNode.removeChild(spark);
-            }, 550);
-          }
-        } catch (e) {}
-      }
-
-      function onUserTyping(inputEl) {
-        playSciFiChirp();
-        bar.classList.add("typing-active");
-        hudState.textContent = "SYNAPSE TRANSMITTING:";
-
-        const val = inputEl.value || "";
-        cypherDisplay.textContent = "[" + scrambleSnippet(val) + "█]";
-
-        const now = Date.now();
-        keyTimes.push(now);
-        keyTimes = keyTimes.filter(t => now - t < 2500);
-        const wpm = Math.round((keyTimes.length / 5) * 24);
-
-        hudTelemetry.textContent = `${val.length} CHARS // ${wpm} WPM`;
-
-        eqBars.forEach(b => {
-          b.style.height = (4 + Math.random() * 12) + "px";
-        });
-
-        inputEl.classList.add("cyber-typing-active");
-        spawnParentSparks(inputEl);
-
-        clearTimeout(idleTimer);
-        idleTimer = setTimeout(() => {
-          bar.classList.remove("typing-active");
-          hudState.textContent = val.length > 0 ? "BUFFER LOCKED // READY TO SEARCH" : "STANDBY";
-          cypherDisplay.textContent = val.length > 0 ? `[${val}]` : "";
-          hudTelemetry.textContent = `${val.length} CHARS // READY`;
-          eqBars.forEach(b => b.style.height = "3px");
-          inputEl.classList.remove("cyber-typing-active");
-        }, 550);
-      }
-
-      function connectParentInput() {
+      function attachWordAnimator() {
         try {
           const parentDoc = window.parent.document;
           const input = parentDoc.querySelector("div[data-testid='stTextInput'] input") || parentDoc.querySelector("input");
-          if (input && !input.__cyberListenerAttached) {
-            input.__cyberListenerAttached = true;
-            input.addEventListener("input", () => onUserTyping(input));
-            input.addEventListener("keydown", () => onUserTyping(input));
-            input.addEventListener("focus", () => {
-              bar.classList.add("typing-active");
-              if (!input.value) hudState.textContent = "OPERATOR LINK ACTIVE // AWAITING KEYSTROKES...";
-            });
-            input.addEventListener("blur", () => {
-              if (!input.value) {
-                bar.classList.remove("typing-active");
-                hudState.textContent = "STANDBY • AWAITING INPUT";
-                cypherDisplay.textContent = "";
+          if (!input) return;
+
+          const parentContainer = input.parentElement;
+          if (!parentContainer) return;
+
+          parentContainer.style.position = "relative";
+          input.style.position = "relative";
+          input.style.zIndex = "2";
+          input.style.color = "transparent";
+          input.style.caretColor = "transparent";
+          input.style.background = "transparent";
+
+          // Inject mirror CSS into parent head once
+          if (!parentDoc.getElementById("cyber-mirror-styles")) {
+            const style = parentDoc.createElement("style");
+            style.id = "cyber-mirror-styles";
+            style.innerHTML = `
+              .cyber-mirror-overlay {
+                position: absolute !important;
+                top: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+                bottom: 0 !important;
+                pointer-events: none !important;
+                font-family: 'JetBrains Mono', Consolas, monospace !important;
+                font-size: 0.92rem !important;
+                padding: 0.72rem 1rem !important;
+                line-height: normal !important;
+                display: flex !important;
+                align-items: center !important;
+                overflow: hidden !important;
+                white-space: pre !important;
+                color: #F8FAFC !important;
+                z-index: 1 !important;
+                user-select: none !important;
+              }
+              .cyber-word {
+                display: inline !important;
+              }
+              .cyber-word.new-word {
+                animation: wordNeonGlow 0.4s ease-out !important;
+              }
+              .cyber-char {
+                display: inline-block !important;
+              }
+              .cyber-char.new-char {
+                animation: cyberCharAppear 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+              }
+              .cyber-caret-block {
+                display: inline-block !important;
+                color: #38BDF8 !important;
+                font-weight: 900 !important;
+                text-shadow: 0 0 10px #38BDF8, 0 0 20px rgba(56, 189, 248, 0.8) !important;
+                animation: caretBlink 0.8s infinite !important;
+                margin-left: 2px !important;
+              }
+              @keyframes cyberCharAppear {
+                0% {
+                  opacity: 0;
+                  transform: translateY(-6px) scale(1.45);
+                  color: #22D3EE;
+                  text-shadow: 0 0 16px #22D3EE, 0 0 32px #38BDF8;
+                  filter: blur(1px);
+                }
+                50% {
+                  opacity: 1;
+                  transform: translateY(1px) scale(1.15);
+                  color: #A78BFA;
+                  text-shadow: 0 0 12px #A78BFA, 0 0 24px #8B5CF6;
+                  filter: blur(0px);
+                }
+                100% {
+                  opacity: 1;
+                  transform: translateY(0) scale(1.0);
+                  color: #F8FAFC;
+                  text-shadow: 0 0 6px rgba(56, 189, 248, 0.4);
+                }
+              }
+              @keyframes wordNeonGlow {
+                0% { text-shadow: 0 0 20px #38BDF8, 0 0 40px #8B5CF6; color: #FFFFFF; }
+                100% { text-shadow: 0 0 6px rgba(56, 189, 248, 0.4); color: #F8FAFC; }
+              }
+              @keyframes caretBlink {
+                0%, 49% { opacity: 1; }
+                50%, 100% { opacity: 0; }
+              }
+            `;
+            parentDoc.head.appendChild(style);
+          }
+
+          // Check or create mirror overlay
+          let overlay = parentContainer.querySelector(".cyber-mirror-overlay");
+          if (!overlay) {
+            overlay = parentDoc.createElement("div");
+            overlay.className = "cyber-mirror-overlay";
+            parentContainer.insertBefore(overlay, input);
+          }
+
+          let lastVal = input.value || "";
+
+          function renderWords(isNewKeystroke = false, keyType = "char") {
+            const val = input.value;
+            overlay.innerHTML = "";
+            if (!val) {
+              overlay.innerHTML = '<span style="color: #64748B;">Enter any topic, question, or research query across the public web...</span><span class="cyber-caret-block">█</span>';
+              lastVal = "";
+              return;
+            }
+
+            const words = val.split(" ");
+            words.forEach((w, wIdx) => {
+              const wordSpan = parentDoc.createElement("span");
+              wordSpan.className = "cyber-word";
+              if (isNewKeystroke && keyType === "space" && wIdx === words.length - 2) {
+                wordSpan.classList.add("new-word");
+              }
+              for (let i = 0; i < w.length; i++) {
+                const charSpan = parentDoc.createElement("span");
+                charSpan.className = "cyber-char";
+                charSpan.textContent = w[i];
+                if (isNewKeystroke && val.length > lastVal.length && wIdx === words.length - 1 && i >= w.length - (val.length - lastVal.length)) {
+                  charSpan.classList.add("new-char");
+                }
+                wordSpan.appendChild(charSpan);
+              }
+              overlay.appendChild(wordSpan);
+              if (wIdx < words.length - 1) {
+                const space = parentDoc.createElement("span");
+                space.textContent = " ";
+                overlay.appendChild(space);
               }
             });
+
+            const caret = parentDoc.createElement("span");
+            caret.className = "cyber-caret-block";
+            caret.textContent = "█";
+            overlay.appendChild(caret);
+
+            lastVal = val;
           }
+
+          function onKey(e) {
+            let type = "char";
+            if (e.key === " ") type = "space";
+            else if (e.key === "Backspace") type = "backspace";
+            else if (e.key === "Enter") type = "enter";
+
+            playSciFiSound(type);
+            input.classList.add("cyber-typing-active");
+            setTimeout(() => input.classList.remove("cyber-typing-active"), 350);
+            renderWords(true, type);
+          }
+
+          if (!input.__cyberWordAttached) {
+            input.__cyberWordAttached = true;
+            input.addEventListener("input", () => renderWords(true, "char"));
+            input.addEventListener("keydown", onKey);
+            input.addEventListener("focus", () => renderWords(false));
+            input.addEventListener("blur", () => renderWords(false));
+          }
+
+          renderWords(false);
         } catch (e) {}
       }
 
-      connectParentInput();
-      setInterval(connectParentInput, 1000);
+      attachWordAnimator();
+      setInterval(attachWordAnimator, 1000);
     </script>
     </body>
     </html>
     """
-    components.html(hud_html, height=52)
+    components.html(animator_html, height=28)
 
 
 def render_futuristic_direct_answer(active_res: SearchPipelineResult):
@@ -666,8 +662,8 @@ def render_search_view(pipeline: SearchPipeline, db: CrawlDatabase):
         </div>
     """, unsafe_allow_html=True)
 
-    # Real-Time Interactive Cyber Typing HUD (activates exclusively while user types)
-    render_interactive_cyber_typing_hud()
+    # Real-Time Kinetic Word Animator & SFX Engine (animates words directly on input)
+    render_cyber_word_animator()
 
     col_q, col_btn = st.columns([5.5, 1.5])
 
