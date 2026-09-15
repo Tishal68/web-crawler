@@ -5,6 +5,7 @@ and event streaming.
 """
 
 import collections
+import logging
 import time
 import uuid
 from datetime import datetime
@@ -31,6 +32,9 @@ from .url_utils import (
 from .parser import parse_page_html
 from .robots import RobotsManager
 from .search_discovery import is_search_query, discover_search_urls
+from .browser_fetcher import PlaywrightBrowserManager
+
+logger = logging.getLogger(__name__)
 
 # Maximum allowed download size for HTML pages (10 MB)
 MAX_RESPONSE_BYTES = 10 * 1024 * 1024
@@ -71,6 +75,7 @@ class WebCrawler:
         self.page_results: List[PageResult] = []
         self.failures: List[CrawlFailure] = []
         self.graph_edges: List[Tuple[str, str, int]] = []  # (source_url, target_url, target_depth)
+        self.browser_manager: Optional[PlaywrightBrowserManager] = None
 
     def normalize_url(self, url: str, base_url: Optional[str] = None) -> Optional[str]:
         """Normalize URL and remove fragments."""
@@ -434,6 +439,14 @@ class WebCrawler:
         # Safety ceiling on total attempts to avoid infinite loops if dead links dominate
         max_attempts_limit = self.config.max_attempts or max(self.config.max_pages * 5, 200)
 
+        # Initialize headless browser if JavaScript rendering requested
+        if getattr(self.config, "render_js", False):
+            self.browser_manager = PlaywrightBrowserManager(
+                user_agent=self.config.user_agent,
+                default_wait_time=getattr(self.config, "js_wait_time", 2.0),
+            )
+            if not self.browser_manager.start():
+                logger.warning("Playwright browser could not be started; falling back to standard HTTP.")
         while queue and len(self.page_results) < self.config.max_pages and total_attempts < max_attempts_limit:
             current_url, current_depth, parent_url = queue.popleft()
             self.attempted_urls.add(current_url)
@@ -479,8 +492,21 @@ class WebCrawler:
             if self.config.request_delay > 0 and len(self.page_results) > 0:
                 time.sleep(self.config.request_delay)
 
-            # Fetch page via HTTP
-            resp, elapsed, err_type, err_msg = self.fetch_page(current_url, self.config.timeout)
+            # Fetch page via Headless Browser (JS Rendering) or standard HTTP
+            resp = None
+            if self.browser_manager is not None:
+                html_content, status_code, elapsed, err_type, err_msg, final_url = self.browser_manager.fetch_page(
+                    current_url,
+                    timeout=self.config.timeout,
+                    wait_seconds=getattr(self.config, "js_wait_time", 2.0),
+                )
+                content_type = "text/html; charset=utf-8"
+            else:
+                resp, elapsed, err_type, err_msg = self.fetch_page(current_url, self.config.timeout)
+                html_content = resp.text if resp is not None else ""
+                status_code = resp.status_code if resp is not None else 0
+                final_url = resp.url if resp and resp.url else current_url
+                content_type = resp.headers.get("Content-Type", "") if resp is not None else ""
 
             # Handle network/connection/status errors
             if err_type is not None:
@@ -507,7 +533,7 @@ class WebCrawler:
                 )
                 continue
 
-            if resp is None:
+            if self.browser_manager is None and resp is None:
                 fail = CrawlFailure(
                     url=current_url,
                     depth=current_depth,
@@ -519,12 +545,13 @@ class WebCrawler:
                 continue
 
             # Status code check (handles mocked fetch_page in tests as well)
-            if resp.status_code >= 400:
+            if status_code >= 400:
+                reason = resp.reason if resp and hasattr(resp, "reason") and resp.reason else ""
                 fail = CrawlFailure(
                     url=current_url,
                     depth=current_depth,
-                    error_type=f"HTTP {resp.status_code}",
-                    error_message=f"Server returned HTTP {resp.status_code} ({resp.reason or ''})",
+                    error_type=f"HTTP {status_code}",
+                    error_message=f"Server returned HTTP {status_code} ({reason})",
                 )
                 self.failures.append(fail)
                 self.failed_urls.add(current_url)
@@ -535,13 +562,13 @@ class WebCrawler:
                     pages_crawled=len(self.page_results),
                     discovered_count=len(self.discovered_urls),
                     failed_count=len(self.failures),
-                    message=f"HTTP Error {resp.status_code} on {current_url}",
+                    message=f"HTTP Error {status_code} on {current_url}",
                     failure=fail,
                 )
                 continue
 
             # Content-Type check (handles mocked fetch_page in tests as well)
-            if not self.is_html_response(resp):
+            if self.browser_manager is None and resp is not None and not self.is_html_response(resp):
                 c_type = resp.headers.get("Content-Type", "")
                 fail = CrawlFailure(
                     url=current_url,
@@ -563,10 +590,6 @@ class WebCrawler:
                 )
                 continue
 
-            # Determine final URL after any redirects for accurate relative link resolution
-            final_url = resp.url if resp.url else current_url
-            content_type = resp.headers.get("Content-Type", "")
-
             # If stay_on_domain is False (cross-domain internet search/surfing),
             # classify internal vs external relative to the page's own domain
             page_domain = get_domain(final_url)
@@ -575,7 +598,7 @@ class WebCrawler:
             # Parse HTML content
             parsed_data = self.extract_links(
                 url=final_url,
-                html=resp.text,
+                html=html_content,
                 base_domain=extract_domain,
             )
 
@@ -584,7 +607,7 @@ class WebCrawler:
                 url=current_url,
                 title=parsed_data["title"],
                 depth=current_depth,
-                status_code=resp.status_code,
+                status_code=status_code,
                 total_links=parsed_data["total_links_found"],
                 unique_links=parsed_data["unique_links_count"],
                 internal_links_count=parsed_data["internal_count"],
@@ -666,6 +689,10 @@ class WebCrawler:
                         self.visited_urls.add(link)
                         queue.append((link, current_depth + 1, current_url))
 
+        if self.browser_manager is not None:
+            self.browser_manager.close()
+            self.browser_manager = None
+
         # Crawl cycle complete
         elapsed_total = time.perf_counter() - crawl_start_perf
         end_time_iso = datetime.now().isoformat()
@@ -730,3 +757,17 @@ class WebCrawler:
             "skipped_urls": list(self.skipped_urls),
             "visited_urls": list(self.visited_urls),
         }
+
+    def close(self) -> None:
+        """Safely close HTTP session and any active headless browser manager."""
+        if self.browser_manager is not None:
+            self.browser_manager.close()
+            self.browser_manager = None
+        if self.session is not None:
+            try:
+                self.session.close()
+            except Exception:
+                pass
+
+    def __del__(self) -> None:
+        self.close()

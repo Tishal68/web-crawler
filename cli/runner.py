@@ -179,6 +179,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--allow-external", dest="same_domain", action="store_false", help="Allow traversing external domains")
     parser.add_argument("--respect-robots", dest="respect_robots", action="store_true", default=True, help="Respect robots.txt policies (default: True)")
     parser.add_argument("--ignore-robots", dest="respect_robots", action="store_false", help="Ignore robots.txt policies")
+    parser.add_argument("--render-js", "--js", dest="render_js", action="store_true", default=False, help="Render JavaScript using headless browser (Playwright) for SPAs / React / Hotstar")
     parser.add_argument("--answer", "-a", dest="answer_mode", action="store_true", help="Execute web search, evidence extraction, and grounded answer retrieval")
     parser.add_argument("--output", "-o", type=str, default=None, help="Output results file (.csv or .json)")
     parser.add_argument("--quiet", "-q", "--minimal", dest="quiet", action="store_true", help="Minimal mode: just crawl without visualizations, tree, or tables")
@@ -309,6 +310,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 return 1
         output_path = args.output
         respect_robots = args.respect_robots
+        render_js = args.render_js
     else:
         # Interactive mode
         if not args.quiet and not args.json:
@@ -328,6 +330,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         delay = prompt_float("Enter polite delay in seconds", default=0.2, min_val=0.0, colors=colors)
         stay_on_domain = prompt_bool("Stay on starting domain?", default=default_same_domain, colors=colors)
         respect_robots = prompt_bool("Respect robots.txt rules?", default=True, colors=colors)
+        render_js = prompt_bool("Render JavaScript with headless browser (for SPAs like Hotstar/React)?", default=False, colors=colors)
         output_path = prompt_output_path(colors)
         if not args.quiet and not args.json:
             print()
@@ -342,6 +345,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         respect_robots=respect_robots,
         search_query=search_query,
         keyword_filter=args.keyword,
+        render_js=render_js,
     )
 
     if not args.quiet and not args.json:

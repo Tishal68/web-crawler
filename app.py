@@ -280,13 +280,15 @@ def render_deep_crawler_mode():
             help="Optional words or phrases to mine and extract from crawled web pages.",
         )
 
-        col_c1, col_c2, col_c3 = st.columns(3)
+        col_c1, col_c2, col_c3, col_c4 = st.columns(4)
         with col_c1:
             stay_on_domain = st.checkbox("Stay on Base Domain", value=True, key="chk_stay_domain")
         with col_c2:
             respect_robots = st.checkbox("Respect robots.txt", value=True, key="chk_robots")
         with col_c3:
             enable_sqlite = st.checkbox("Persist Session in SQLite", value=True, key="chk_sqlite")
+        with col_c4:
+            render_js = st.checkbox("⚡ Render JavaScript (SPAs / Hotstar)", value=False, key="chk_render_js", help="Use headless Chromium browser to execute client-side JavaScript for modern React/Vue SPAs like Hotstar or Netflix.")
 
     # Live Crawl Execution
     if btn_start:
@@ -321,6 +323,7 @@ def render_deep_crawler_mode():
             timeout=float(timeout_val),
             keyword_filter=keyword_filter_val.strip() if keyword_filter_val else None,
             search_query=config_search_query,
+            render_js=render_js,
         )
 
         st.session_state["is_crawling"] = True

@@ -38,6 +38,7 @@ def format_config_box(
     """Format the crawl configuration block."""
     domain_status = "ENABLED (Stay on domain)" if config.stay_on_domain else "DISABLED (Cross-domain allowed)"
     robots_status = "ENABLED (Honor rules)" if config.respect_robots else "DISABLED (Ignore robots.txt)"
+    engine_status = colors.yellow("Headless Chromium (JS Enabled)") if getattr(config, "render_js", False) else "Standard HTTP (Fast)"
     out_display = output_path if output_path else "None (Terminal display only)"
 
     lines = [
@@ -49,6 +50,7 @@ def format_config_box(
     if config.keyword_filter:
         lines.append(f"  Keyword Filter : {colors.yellow(config.keyword_filter)}")
     lines.extend([
+        f"  Engine         : {engine_status}",
         f"  Maximum Depth  : {config.max_depth}",
         f"  Maximum Pages  : {config.max_pages}",
         f"  Timeout        : {config.timeout}s",
