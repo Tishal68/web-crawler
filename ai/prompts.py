@@ -1,7 +1,4 @@
-"""
-Prompt construction and system directives for grounded AI research synthesis.
-Enforces strict citation constraints, structured JSON contracts, and multilingual synthesis.
-"""
+"""Prompt construction and system directives for grounded AI research synthesis."""
 
 from __future__ import annotations
 from typing import TYPE_CHECKING, List, Dict, Any, Optional
@@ -11,63 +8,29 @@ if TYPE_CHECKING:
     from answer.citations import Citation
 
 
-SYSTEM_SYNTHESIS_PROMPT = """You are an elite, objective Web Research Intelligence Engine.
-Your mission is to perform comprehensive, factually grounded information synthesis using ONLY the provided verified web sources.
+SYSTEM_SYNTHESIS_PROMPT = """You are an objective Web Research Intelligence Engine.
+Use ONLY the verified web evidence supplied in the prompt.
 
-CRITICAL OPERATIONAL RULES:
-1. STRICT CITATION GROUNDING:
-   - Every factual statement, statistic, date, or claim MUST be tied to the source IDs that directly support it.
-   - You MUST ONLY use the integer source IDs provided in the [Source X] headers (e.g. 1, 2, 3).
-   - DO NOT invent, hallucinate, or assume any source IDs that were not explicitly listed.
-   - If a claim cannot be verified from the provided sources, DO NOT present it as established fact.
+CRITICAL RULES:
+1. Every factual statement, statistic, date, or claim must be supported by the provided source IDs.
+2. Never invent facts, sources, URLs, citations, or source IDs.
+3. Use multiple independent sources when they contain useful evidence. Do not over-rely on one domain.
+4. Do not repeat the same fact using different wording merely to make an answer longer.
+5. Prefer information-dense details, examples, mechanisms, dates, metrics, context, limitations, and source-backed distinctions.
+6. If sources disagree, preserve the disagreement and identify which sources support each view.
+7. For simple queries, be concise but complete. For explanatory or complex queries, provide a genuinely detailed multi-paragraph synthesis.
+8. If an EXACT WORD COUNT is supplied, treat it as a hard requirement for the final direct_answer. The final direct_answer must contain exactly that many prose words. Never pad with repetition or unsupported information. If necessary, select and combine only source-supported information to meet the target.
+9. Numeric citation markers such as [1] must reference only supplied sources.
+10. Return ONLY valid JSON matching the requested schema.
 
-2. ADAPTIVE RESEARCH DEPTH:
-   - For simple queries: Provide a concise, highly informative, direct answer (1-2 paragraphs) with citations.
-   - For complex or explanatory queries: Provide a thorough, multi-paragraph synthesis divided into logical thematic sections (e.g., Overview, Architecture & Mechanics, Key Capabilities, Discoveries / Applications).
-   - For comparison queries: Provide a structured side-by-side comparison across technical dimensions, tradeoffs, and recommendations.
-
-3. CONTRADICTIONS & DISAGREEMENTS:
-   - If sources disagree on dates, metrics, launch windows, versions, or conclusions, DO NOT arbitrarily pick one.
-   - Explicitly document the disagreement in the "conflicts" array, identifying which sources support which view.
-
-4. MULTILINGUAL SOURCES:
-   - Sources may be in multiple languages (English, Spanish, French, German, etc.).
-   - Read and extract information across all languages, but write your entire final synthesis in the requested TARGET LANGUAGE.
-
-5. OUTPUT FORMAT:
-   You MUST return ONLY a valid, parseable JSON object matching this exact schema:
+JSON SCHEMA:
 {
-  "direct_answer": "Clear, comprehensive introductory answer synthesizing the core findings with inline [1] style citations where appropriate.",
-  "key_findings": [
-    "Key finding or milestone 1 with specific facts and metric details.",
-    "Key finding or milestone 2 with specific facts and metric details."
-  ],
-  "claims": [
-    {
-      "text": "Specific factual proposition.",
-      "source_ids": [1, 2]
-    }
-  ],
-  "sections": [
-    {
-      "title": "Descriptive Section Heading",
-      "content": "Detailed paragraphs of synthesis explaining this facet of the topic thoroughly.",
-      "source_ids": [1, 3]
-    }
-  ],
-  "conflicts": [
-    {
-      "topic": "Topic of disagreement (e.g. Launch Date)",
-      "view_a": "First reported version/metric",
-      "source_ids_a": [1],
-      "view_b": "Second conflicting version/metric",
-      "source_ids_b": [2]
-    }
-  ],
-  "follow_up_questions": [
-    "Intelligent, relevant follow-up research question 1?",
-    "Intelligent, relevant follow-up research question 2?"
-  ]
+  "direct_answer": "Detailed, factual, source-backed answer with inline [1] citations.",
+  "key_findings": ["Distinct evidence-backed finding 1", "Distinct evidence-backed finding 2"],
+  "claims": [{"text": "Specific factual proposition", "source_ids": [1, 2]}],
+  "sections": [{"title": "Descriptive Section Heading", "content": "Detailed synthesis", "source_ids": [1, 3]}],
+  "conflicts": [{"topic": "Disagreement", "view_a": "First view", "source_ids_a": [1], "view_b": "Second view", "source_ids_b": [2]}],
+  "follow_up_questions": ["Relevant follow-up question"]
 }
 """
 
@@ -79,46 +42,35 @@ def build_synthesis_prompt(
     analysis: Optional[Any] = None,
     history: Optional[List[Dict[str, str]]] = None,
     target_language: str = "en",
+    requested_word_count: Optional[int] = None,
 ) -> str:
-    """
-    Build the user prompt combining conversation history, user query, and retrieved source evidence.
-    """
+    """Build the synthesis prompt from the query and verified source evidence."""
     parts: List[str] = []
 
-    # 1. Target language instruction
-    lang_name = "English"
-    if target_language == "es":
-        lang_name = "Spanish"
-    elif target_language == "fr":
-        lang_name = "French"
-    elif target_language == "de":
-        lang_name = "German"
-
+    lang_name = {"es": "Spanish", "fr": "French", "de": "German"}.get(target_language, "English")
     parts.append(f"TARGET ANSWER LANGUAGE: {lang_name}")
 
-    # 2. Conversational Context if present
-    if history and len(history) > 0:
+    if requested_word_count:
+        parts.append(
+            f"\nEXACT WORD COUNT: {requested_word_count} words for direct_answer. "
+            "This is a hard requirement. Count prose words deterministically. "
+            "Do not use repetition, filler, invented facts, or unsupported claims to reach the target."
+        )
+
+    if history:
         parts.append("\nPREVIOUS CONVERSATION CONTEXT:")
         for turn in history[-4:]:
-            role = turn.get("role", "user").capitalize()
-            content = turn.get("content", "")
-            parts.append(f"{role}: {content}")
+            parts.append(f"{turn.get('role', 'user').capitalize()}: {turn.get('content', '')}")
 
-    # 3. User Query
     parts.append(f"\nCURRENT RESEARCH QUERY: \"{query}\"")
-
-    # 4. Registered Sources & Evidence Passages
     parts.append("\nVERIFIED EVIDENCE FROM WEB SOURCES:")
 
-    # Group passages by source URL / citation index
     cit_map: Dict[str, Citation] = {c.url: c for c in sources}
     passages_by_source: Dict[int, List[EvidencePassage]] = {}
-
     for p in passages:
         cit = cit_map.get(p.source_url)
         if cit:
-            idx = cit.index
-            passages_by_source.setdefault(idx, []).append(p)
+            passages_by_source.setdefault(cit.index, []).append(p)
 
     for cit in sources:
         idx = cit.index
@@ -128,7 +80,6 @@ def build_synthesis_prompt(
         if cit.published_date:
             parts.append(f"Published Date: {cit.published_date}")
         parts.append(f"URL: {cit.url}")
-
         source_passages = passages_by_source.get(idx, [])
         if source_passages:
             parts.append("Key Evidence Passages:")
@@ -141,5 +92,5 @@ def build_synthesis_prompt(
         else:
             parts.append("  * (Source retrieved without full body text)")
 
-    parts.append("\nSynthesize a thorough, objective, fully cited research response following the required JSON schema.")
+    parts.append("\nSynthesize a detailed, objective, fully cited research response using only this evidence.")
     return "\n".join(parts)
