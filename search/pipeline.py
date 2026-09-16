@@ -1,11 +1,6 @@
-"""
-Search Pipeline Module.
-Orchestrates end-to-end Web Search, Source Discovery, Evidence Extraction,
-Cross-Source Verification, Contradiction Detection, and Grounded Answer Generation.
-"""
+"""Search pipeline for web discovery, evidence extraction, verification, and grounded synthesis."""
 
 import time
-import re
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional, Callable
 
@@ -24,12 +19,11 @@ from evidence.coverage import cluster_evidence_by_facets, EvidenceCoverageReport
 from answer.generator import GroundedAnswer, AnswerGenerator
 from crawler.database import CrawlDatabase
 from ai import BaseLLMProvider
-from answer.word_count import extract_requested_word_count
+from answer.word_count import extract_requested_word_count, remove_word_count_instruction
 
 
 @dataclass
 class SearchPipelineResult:
-    """Complete result bundle produced by the search pipeline."""
     query: str
     query_analysis: QueryAnalysis
     provider_used: str
@@ -60,19 +54,11 @@ class SearchPipelineResult:
 
 
 class SearchPipeline:
-    """Unified coordinator for web search, extraction, verification, and answer grounding."""
-
-    def __init__(
-        self,
-        cache: Optional[SearchCache] = None,
-        db: Optional[CrawlDatabase] = None,
-        timeout: float = 6.0,
-        ai_provider: Optional[BaseLLMProvider] = None,
-    ):
+    def __init__(self, cache: Optional[SearchCache] = None, db: Optional[CrawlDatabase] = None,
+                 timeout: float = 6.0, ai_provider: Optional[BaseLLMProvider] = None):
         self.cache = cache or SearchCache(default_ttl_seconds=1800)
         self.db = db
         self.timeout = timeout
-
         self.query_analyzer = QueryAnalyzer()
         self.google_provider = GoogleSearchProvider()
         self.multi_provider = MultiEngineSearchProvider()
@@ -81,29 +67,17 @@ class SearchPipeline:
         self.answer_generator = AnswerGenerator(llm_provider=ai_provider)
 
     def get_preferred_provider(self, requested: str = "auto") -> SearchProvider:
-        """Select appropriate provider based on user request or availability."""
         req = requested.lower().strip()
         if req == "google":
-            if self.google_provider.is_available():
-                return self.google_provider
+            return self.google_provider if self.google_provider.is_available() else self.multi_provider
+        if req in ("multi", "bing"):
             return self.multi_provider
-        elif req in ("multi", "bing"):
-            return self.multi_provider
+        return self.google_provider if self.google_provider.is_available() else self.multi_provider
 
-        if self.google_provider.is_available():
-            return self.google_provider
-        return self.multi_provider
-
-    def run(
-        self,
-        query: str,
-        num_sources: int = 12,
-        provider_preference: str = "auto",
-        progress_callback: Optional[Callable[[str, float], None]] = None,
-        conversation_history: Optional[List[Dict[str, str]]] = None,
-        target_language: str = "en",
-    ) -> SearchPipelineResult:
-        """Execute end-to-end search pipeline with adaptive source/evidence depth."""
+    def run(self, query: str, num_sources: int = 12, provider_preference: str = "auto",
+            progress_callback: Optional[Callable[[str, float], None]] = None,
+            conversation_history: Optional[List[Dict[str, str]]] = None,
+            target_language: str = "en") -> SearchPipelineResult:
         start_time = time.time()
         requested_word_count = extract_requested_word_count(query)
 
@@ -114,19 +88,16 @@ class SearchPipeline:
                 except Exception:
                     pass
 
-        # 1. Query Understanding & Context Resolution
-        _update("Analyzing search query & intent...", 0.10)
-        search_target = query
+        # Strip only the output-length instruction before web retrieval. The original
+        # query remains available to synthesis so the answer follows the user's wording.
+        search_target = remove_word_count_instruction(query)
         if conversation_history:
-            search_target = rewrite_follow_up_query(query, conversation_history)
+            search_target = rewrite_follow_up_query(search_target, conversation_history)
         analysis = self.query_analyzer.analyze(search_target)
 
-        # 2. Select and query search provider. Retrieve a healthy evidence buffer.
         provider = self.get_preferred_provider(provider_preference)
         _update(f"Searching web via {provider.provider_name}...", 0.25)
 
-        # Exact-count requests still need broad retrieval because the final answer must
-        # be information-dense rather than padded.
         effective_source_target = max(12, num_sources)
         cached_set = self.cache.get(search_target, provider.provider_name, effective_source_target)
         if cached_set:
@@ -135,11 +106,10 @@ class SearchPipeline:
             fetch_count = min(30, effective_source_target + 12)
             result_set = provider.search(search_target, num_results=fetch_count)
 
-            # Multi-angle query discovery for complex multi-facet queries.
             if getattr(analysis, "facets", None) and len(analysis.facets) > 1:
                 seen_urls = {r.url for r in result_set.results}
                 for facet in analysis.facets[:4]:
-                    if facet.search_query and facet.search_query.strip().lower() != query.strip().lower():
+                    if facet.search_query and facet.search_query.strip().lower() != search_target.strip().lower():
                         try:
                             f_res = provider.search(facet.search_query, num_results=4)
                             for r in f_res.results:
@@ -148,10 +118,8 @@ class SearchPipeline:
                                     result_set.results.append(r)
                         except Exception:
                             pass
+            self.cache.set(search_target, provider.provider_name, result_set, num_results=effective_source_target)
 
-            self.cache.set(query, provider.provider_name, result_set, num_results=effective_source_target)
-
-        # 3. Multi-factor result ranking with controlled domain diversity.
         _update("Ranking sources by authority, relevance, freshness, and diversity...", 0.45)
         ranked = rank_search_results(
             results=result_set.results,
@@ -160,14 +128,12 @@ class SearchPipeline:
             domain_diversity_limit=2,
         )
 
-        # 4. Deep page fetching and evidence extraction.
         _update("Fetching multiple independent sources and extracting evidence...", 0.62)
         extracted_pages = self.evidence_extractor.extract_from_search_results(
             results=ranked,
             max_workers=min(6, max(1, len(ranked))),
         )
 
-        # 5. Keep a substantially larger evidence pool for synthesis.
         _update("Building a broader evidence set for detailed synthesis...", 0.72)
         all_passages: List[EvidencePassage] = []
         for page in extracted_pages:
@@ -185,13 +151,10 @@ class SearchPipeline:
             facets=getattr(analysis, "facets", []),
         )
 
-        # 6. Iterative deep-research loop for complex multi-facet topics.
         is_complex = getattr(analysis, "complexity", None) == QueryComplexity.COMPLEX
         if is_complex and coverage and coverage.unverified_requirements:
-            for uncovered_facet in [
-                f for f in getattr(analysis, "facets", [])
-                if f.title in coverage.unverified_requirements and f.search_query
-            ][:2]:
+            for uncovered_facet in [f for f in getattr(analysis, "facets", [])
+                                    if f.title in coverage.unverified_requirements and f.search_query][:2]:
                 _update(f"Deep Research Loop: targeted retrieval for '{uncovered_facet.title}'...", 0.79)
                 try:
                     target_res = provider.search(uncovered_facet.search_query, num_results=4)
@@ -199,16 +162,13 @@ class SearchPipeline:
                     new_candidates = [r for r in target_res.results if r.url not in existing_urls]
                     if new_candidates:
                         new_pages = self.evidence_extractor.extract_from_search_results(
-                            results=new_candidates[:3],
-                            max_workers=min(3, len(new_candidates)),
+                            results=new_candidates[:3], max_workers=min(3, len(new_candidates))
                         )
+                        extracted_pages.extend(new_pages)
                         for np in new_pages:
-                            extracted_pages.append(np)
                             all_passages.extend(np.passages)
                         top_passages = rank_and_filter_passages(
-                            passages=all_passages,
-                            query_analysis=analysis,
-                            max_passages=evidence_limit,
+                            passages=all_passages, query_analysis=analysis, max_passages=evidence_limit
                         )
                         coverage = cluster_evidence_by_facets(
                             passages=all_passages if len(all_passages) < 120 else top_passages,
@@ -217,7 +177,6 @@ class SearchPipeline:
                 except Exception:
                     pass
 
-        # 7. Verification, corroboration, and contradiction detection.
         _update("Cross-checking sources and verifying facts...", 0.86)
         verification = self.verifier.verify(
             extracted_evidence=extracted_pages,
@@ -225,7 +184,6 @@ class SearchPipeline:
             query_analysis=analysis,
         )
 
-        # 8. Grounded confidence scoring.
         confidence = calculate_confidence(
             independent_domains=verification["independent_domains"],
             contradictions=verification["contradictions"],
@@ -233,7 +191,6 @@ class SearchPipeline:
             is_time_sensitive=analysis.is_time_sensitive,
         )
 
-        # 9. Detailed grounded synthesis + exact-count refinement when requested.
         _update("Synthesizing detailed, source-backed answer...", 0.94)
         answer = self.answer_generator.generate_answer(
             query=query,
