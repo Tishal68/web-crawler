@@ -20,7 +20,7 @@ class BaseLLMProvider(ABC):
     @property
     @abstractmethod
     def provider_name(self) -> str:
-        """Name of the LLM provider (e.g. 'Hosted Llama 3.3 (Groq)')."""
+        """Name of the LLM provider."""
         pass
 
     @abstractmethod
@@ -37,9 +37,7 @@ class BaseLLMProvider(ABC):
         analysis: Optional[Any] = None,
         history: Optional[List[Dict[str, str]]] = None,
         target_language: str = "en",
+        requested_word_count: Optional[int] = None,
     ) -> Optional[SynthesizedResearchResponse]:
-        """
-        Synthesize evidence into a grounded, structured research response with claim citations.
-        Returns None if synthesis fails or API is unavailable.
-        """
+        """Synthesize evidence into a grounded, structured research response."""
         pass
