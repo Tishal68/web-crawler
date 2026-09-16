@@ -280,11 +280,75 @@ class WebCrawler:
         self.failures.clear()
         self.graph_edges.clear()
 
-        # Check if input is a search query/sentence or direct URL
-        raw_start = (self.config.start_url or "").strip()
-        is_query = is_search_query(raw_start)
+        # Check if input is multiple seeds, search query/sentence, or direct URL
+        explicit_seeds = [u.strip() for u in (getattr(self.config, "start_urls", None) or []) if u and u.strip()]
+        raw_start = (self.config.start_url or self.config.search_query or "").strip()
+        is_query = is_search_query(raw_start) if (raw_start and not explicit_seeds) else False
 
-        if is_query:
+        if explicit_seeds:
+            valid_seeds = []
+            for s_url in explicit_seeds:
+                norm = s_url if "://" in s_url else "https://" + s_url
+                normalized = self.normalize_url(norm)
+                if normalized and self.is_valid_url(normalized):
+                    is_safe, _ = is_safe_target_url(normalized, resolve_dns=False)
+                    if is_safe and normalized not in valid_seeds:
+                        valid_seeds.append(normalized)
+            if not valid_seeds:
+                failure = CrawlFailure(
+                    url=str(explicit_seeds),
+                    depth=0,
+                    error_type="Invalid Seed URLs",
+                    error_message="None of the provided starting URLs were valid or safe.",
+                )
+                self.failures.append(failure)
+                self.failed_urls.add(str(explicit_seeds))
+                summary = CrawlSessionSummary(
+                    session_id=session_id,
+                    start_url=", ".join(explicit_seeds),
+                    max_depth=self.config.max_depth,
+                    max_pages=self.config.max_pages,
+                    start_time=start_time_iso,
+                    end_time=datetime.now().isoformat(),
+                    elapsed_seconds=round(time.perf_counter() - crawl_start_perf, 2),
+                    pages_crawled=0,
+                    discovered_urls_count=0,
+                    failed_urls_count=1,
+                    total_internal_links=0,
+                    total_external_links=0,
+                    stay_on_domain=self.config.stay_on_domain,
+                    max_depth_reached=0,
+                )
+                yield CrawlProgressEvent(
+                    event_type="failure",
+                    current_url=str(explicit_seeds),
+                    current_depth=0,
+                    pages_crawled=0,
+                    discovered_count=0,
+                    failed_count=1,
+                    message=f"Starting URLs error: {failure.error_message}",
+                    failure=failure,
+                )
+                return summary
+
+            normalized_start = valid_seeds[0]
+            start_domain = get_domain(normalized_start)
+            queue = collections.deque([(s_url, 0, None) for s_url in valid_seeds])
+            for s_url in valid_seeds:
+                self.queued_urls.add(s_url)
+                self.visited_urls.add(s_url)
+                self.discovered_urls.add(s_url)
+
+            yield CrawlProgressEvent(
+                event_type="start",
+                current_url=valid_seeds[0],
+                current_depth=0,
+                pages_crawled=0,
+                discovered_count=len(valid_seeds),
+                failed_count=0,
+                message=f"Multi-seed crawl initialized with {len(valid_seeds)} starting seeds (Max Depth: {self.config.max_depth}, Max Pages: {self.config.max_pages})",
+            )
+        elif is_query:
             # User wants to crawl across the internet for words/sentence/topic
             self.config.search_query = raw_start
             self.config.stay_on_domain = False  # Search traversal spans multiple domains across internet
@@ -618,10 +682,10 @@ class WebCrawler:
                 )
                 continue
 
-            # If stay_on_domain is False (cross-domain internet search/surfing),
-            # classify internal vs external relative to the page's own domain
+            # If stay_on_domain is False (cross-domain internet search/surfing), or if running
+            # multi-seed/query search, classify internal vs external relative to the page's own domain
             page_domain = get_domain(final_url)
-            extract_domain = start_domain if self.config.stay_on_domain else page_domain
+            extract_domain = page_domain if (is_query or explicit_seeds or not self.config.stay_on_domain) else start_domain
 
             # Parse HTML content
             parsed_data = self.extract_links(

@@ -26,6 +26,7 @@ class CrawlConfig:
     keyword_filter: Optional[str] = None
     render_js: bool = False
     js_wait_time: float = 2.0
+    start_urls: Optional[List[str]] = None
 
 
 @dataclass

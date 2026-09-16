@@ -29,7 +29,11 @@ from ui.dashboard import (
     render_history_section,
 )
 from search.pipeline import SearchPipeline
-from ui.search_view import render_search_view, render_search_history_view
+from ui.search_view import (
+    render_search_view,
+    render_search_history_view,
+    render_real_input_cyber_animator,
+)
 from ui.source_inspector import render_source_inspector
 
 # Initialize page settings
@@ -212,6 +216,9 @@ def render_deep_crawler_mode():
                 args=(raw_deck_input,),
             )
 
+    # Real-time kinetic typing animator for crawler command deck input
+    render_real_input_cyber_animator()
+
     col_pre, col_url, col_btn, col_clr = st.columns([1.8, 4.5, 1.6, 1.1])
 
     with col_pre:
@@ -224,12 +231,16 @@ def render_deep_crawler_mode():
             label_visibility="collapsed",
         )
 
+    def on_crawl_input_submit():
+        st.session_state["trigger_auto_crawl"] = True
+
     with col_url:
         start_url_input = st.text_input(
             "Target Seed URL or Words / Sentences",
             placeholder="Enter website URL (https://...) or words / sentence to crawl across internet...",
             key="input_target_url",
             label_visibility="collapsed",
+            on_change=on_crawl_input_submit,
         )
 
     with col_btn:
@@ -295,7 +306,8 @@ def render_deep_crawler_mode():
                     st.warning("⚠️ Headless browser engine not detected. Crawl will fall back to HTTP.")
 
     # Live Crawl Execution
-    if btn_start:
+    should_crawl = btn_start or st.session_state.pop("trigger_auto_crawl", False)
+    if should_crawl:
         target_raw = start_url_input.strip()
         is_query_mode = is_search_query(target_raw)
 
@@ -314,14 +326,14 @@ def render_deep_crawler_mode():
             config_start_url = norm_url
             config_search_query = None
         else:
-            config_start_url = ""
+            config_start_url = target_raw
             config_search_query = target_raw
 
         config = CrawlConfig(
             start_url=config_start_url,
             max_depth=int(max_depth),
             max_pages=int(max_pages),
-            stay_on_domain=stay_on_domain,
+            stay_on_domain=stay_on_domain if not is_query_mode else False,
             respect_robots=respect_robots,
             request_delay=float(delay_val),
             timeout=float(timeout_val),

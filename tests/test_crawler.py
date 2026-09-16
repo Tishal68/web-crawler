@@ -485,3 +485,80 @@ def test_crawl_stream_event_attributes_and_ui_compatibility():
             assert isinstance(ev.queue_size, int)
             assert ev.status in ("start", "searching", "fetching", "success", "failure", "skipped", "completed")
 
+
+def test_crawl_stream_multi_seed_start_urls():
+    """Verify that multiple explicit start_urls are queued and crawled at depth 0."""
+    html_content = "<html><head><title>Test Page</title></head><body>Hello world</body></html>"
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.headers = {"Content-Type": "text/html"}
+    mock_resp.is_redirect = False
+    mock_resp.iter_content.return_value = [html_content.encode("utf-8")]
+
+    with patch("requests.Session.get", return_value=mock_resp), \
+         patch("crawler.crawler.is_safe_target_url", return_value=(True, None)):
+        config = CrawlConfig(
+            start_url="https://site1.com",
+            start_urls=["https://site1.com", "https://site2.com"],
+            max_depth=0,
+            max_pages=5,
+            respect_robots=False,
+            request_delay=0.0,
+        )
+        crawler = WebCrawler(config=config)
+        events = list(crawler.crawl_stream())
+        crawled_urls = [p.url for p in crawler.page_results]
+        assert "https://site1.com" in crawled_urls
+        assert "https://site2.com" in crawled_urls
+        assert len(crawled_urls) == 2
+
+
+def test_crawl_stream_search_query_multi_seed_discovery():
+    """Verify that a search query discovers multiple seeds and crawls them without crashing."""
+    html_content = "<html><head><title>Discovered Page</title></head><body>AI content</body></html>"
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.headers = {"Content-Type": "text/html"}
+    mock_resp.is_redirect = False
+    mock_resp.iter_content.return_value = [html_content.encode("utf-8")]
+
+    fake_discovered = ["https://ai-research.org/intro", "https://ml-news.com/overview"]
+
+    with patch("crawler.crawler.discover_search_urls", return_value=fake_discovered), \
+         patch("requests.Session.get", return_value=mock_resp), \
+         patch("crawler.crawler.is_safe_target_url", return_value=(True, None)):
+        config = CrawlConfig(
+            start_url="",
+            search_query="artificial intelligence",
+            max_depth=0,
+            max_pages=5,
+            respect_robots=False,
+            request_delay=0.0,
+        )
+        crawler = WebCrawler(config=config)
+        events = list(crawler.crawl_stream())
+        event_types = [ev.event_type for ev in events]
+        assert "searching" in event_types
+        assert "start" in event_types
+        assert len(crawler.page_results) == 2
+        assert crawler.config.stay_on_domain is False
+
+
+def test_crawl_stream_search_query_no_discovery_results():
+    """Verify that when search discovery returns zero results, it fails gracefully without crashing."""
+    with patch("crawler.crawler.discover_search_urls", return_value=[]):
+        config = CrawlConfig(
+            start_url="",
+            search_query="nonexistent query 12345xyz",
+            max_depth=1,
+            max_pages=5,
+            respect_robots=False,
+            request_delay=0.0,
+        )
+        crawler = WebCrawler(config=config)
+        events = list(crawler.crawl_stream())
+        assert len(events) >= 1
+        assert events[-1].event_type == "failure"
+        assert len(crawler.failures) == 1
+        assert "Search Discovery Failed" in crawler.failures[0].error_type
+

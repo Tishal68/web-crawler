@@ -929,18 +929,24 @@ def apply_custom_styles():
             box-shadow: 0 0 16px rgba(34, 211, 238, 0.25) !important;
         }
 
-        /* === FUTURISTIC SEARCH & TYPEWRITER CYBER STYLES === */
+        div[data-testid="stTextInput"] {
+            position: relative !important;
+        }
         div[data-testid="stTextInput"] input {
             background: rgba(11, 17, 32, 0.88) !important;
             border: 1px solid rgba(56, 189, 248, 0.40) !important;
             border-radius: 8px !important;
             color: #F8FAFC !important;
-            font-family: 'JetBrains Mono', monospace !important;
+            font-family: 'JetBrains Mono', Consolas, monospace !important;
             font-size: 0.92rem !important;
             padding: 0.72rem 1rem !important;
             caret-color: #38BDF8 !important;
             box-shadow: 0 0 15px rgba(56, 189, 248, 0.15), inset 0 0 10px rgba(0, 0, 0, 0.6) !important;
             transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        }
+        div[data-testid="stTextInput"] input::selection {
+            background: rgba(56, 189, 248, 0.40) !important;
+            color: #FFFFFF !important;
         }
         div[data-testid="stTextInput"] input:focus {
             border-color: #38BDF8 !important;
@@ -957,6 +963,48 @@ def apply_custom_styles():
             0% { transform: scale(1.003); box-shadow: 0 0 35px rgba(56, 189, 248, 0.85), 0 0 60px rgba(139, 92, 246, 0.5), inset 0 0 20px rgba(56, 189, 248, 0.3); }
             50% { transform: scale(1.0); box-shadow: 0 0 28px rgba(56, 189, 248, 0.70), 0 0 45px rgba(139, 92, 246, 0.4), inset 0 0 14px rgba(56, 189, 248, 0.25); }
             100% { transform: scale(1.0); box-shadow: 0 0 25px rgba(56, 189, 248, 0.65), 0 0 40px rgba(139, 92, 246, 0.35), inset 0 0 12px rgba(56, 189, 248, 0.2); }
+        }
+        .cyber-pop-layer {
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            pointer-events: none !important;
+            overflow: hidden !important;
+            border-radius: 8px !important;
+            z-index: 5 !important;
+        }
+        .cyber-kinetic-pop {
+            position: absolute !important;
+            pointer-events: none !important;
+            font-family: 'JetBrains Mono', Consolas, monospace !important;
+            font-size: 0.92rem !important;
+            font-weight: 700 !important;
+            line-height: 1 !important;
+            color: #22D3EE !important;
+            text-shadow: 0 0 10px #22D3EE, 0 0 22px #38BDF8 !important;
+            animation: cyberKineticPop 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+            z-index: 10 !important;
+        }
+        @keyframes cyberKineticPop {
+            0% {
+                opacity: 1;
+                transform: translateY(-5px) scale(1.35);
+                color: #22D3EE;
+                text-shadow: 0 0 12px #22D3EE, 0 0 24px #38BDF8;
+            }
+            50% {
+                opacity: 0.85;
+                transform: translateY(0) scale(1.15);
+                color: #A78BFA;
+                text-shadow: 0 0 8px #A78BFA, 0 0 16px #8B5CF6;
+            }
+            100% {
+                opacity: 0;
+                transform: translateY(0) scale(1.0);
+                color: #F8FAFC;
+            }
         }
         .cyber-spark-particle {
             position: fixed;
@@ -976,6 +1024,15 @@ def apply_custom_styles():
         div[data-testid="stTextInput"] input::placeholder {
             color: #64748B !important;
             font-family: 'JetBrains Mono', monospace !important;
+        }
+        /* Zero-height script iframe container hiding */
+        div[data-testid="stCustomComponentV1"]:has(iframe[data-testid="cyber-script-frame"]) {
+            display: none !important;
+            height: 0 !important;
+            min-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
         }
 
         /* Animated Cyber Prompt Deck Bar */

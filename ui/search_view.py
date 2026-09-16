@@ -43,10 +43,10 @@ SEARCH_PRESETS = {
 RADAR_QUERIES = list(SEARCH_PRESETS.values())
 
 
-def render_cyber_word_animator():
-    """Renders the Kinetic Word Animator & Web Audio SFX Engine.
-    Animates individual typed characters and words directly inside the search input box
-    with neon popping glyphs, word glow blooms, moving cyan block cursor, and tactile sci-fi sound effects.
+def render_real_input_cyber_animator():
+    """Renders the Real Search Input Kinetic Typing Animator & Web Audio SFX Engine.
+    Operates directly on the real search box (div[data-testid='stTextInput'] input)
+    with zero visible demo windows, preserving native text, caret, selection, and keyboard navigation.
     """
     animator_html = """
     <!DOCTYPE html>
@@ -54,313 +54,175 @@ def render_cyber_word_animator():
     <head>
     <meta charset="utf-8">
     <style>
-      * { box-sizing: border-box; margin: 0; padding: 0; }
-      body {
-        background: transparent;
-        font-family: 'JetBrains Mono', Consolas, monospace;
-        overflow: hidden;
-        color: #F8FAFC;
-        display: flex;
-        justify-content: flex-end;
-        align-items: center;
-        height: 28px;
-        padding-right: 0.2rem;
-      }
-      .audio-pill {
-        background: rgba(139, 92, 246, 0.15);
-        border: 1px solid rgba(139, 92, 246, 0.40);
-        color: #C4B5FD;
-        padding: 0.18rem 0.55rem;
-        border-radius: 4px;
-        font-size: 0.68rem;
-        font-family: inherit;
-        font-weight: 700;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        display: flex;
-        align-items: center;
-        gap: 0.35rem;
-      }
-      .audio-pill:hover {
-        background: rgba(139, 92, 246, 0.35);
-        color: #FFFFFF;
-        box-shadow: 0 0 10px rgba(139, 92, 246, 0.4);
-      }
+      html, body { width: 0; height: 0; margin: 0; padding: 0; overflow: hidden; }
     </style>
     </head>
     <body>
-    <button id="btnAudioToggle" class="audio-pill" onclick="toggleAudio()">
-      <span id="audioIcon">🔊</span>
-      <span id="audioLabel">KEYSTROKE SFX: ON</span>
-    </button>
-
     <script>
-      let audioEnabled = true;
-      let audioCtx = null;
-
-      function getAudioContext() {
-        if (!audioCtx) {
-          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      (function() {
+        let audioCtx = null;
+        function getAudioContext() {
+          if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          }
+          if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+          }
+          return audioCtx;
         }
-        if (audioCtx.state === 'suspended') {
-          audioCtx.resume();
+
+        function playSound(type) {
+          try {
+            const ctx = getAudioContext();
+            const now = ctx.currentTime;
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+
+            if (type === 'space') {
+              osc.type = 'triangle';
+              osc.frequency.setValueAtTime(200, now);
+              osc.frequency.exponentialRampToValueAtTime(75, now + 0.05);
+              gain.gain.setValueAtTime(0.08, now);
+              gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+              osc.connect(gain);
+              gain.connect(ctx.destination);
+              osc.start(now);
+              osc.stop(now + 0.05);
+            } else if (type === 'backspace') {
+              osc.type = 'sine';
+              osc.frequency.setValueAtTime(900, now);
+              osc.frequency.exponentialRampToValueAtTime(300, now + 0.04);
+              gain.gain.setValueAtTime(0.05, now);
+              gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+              osc.connect(gain);
+              gain.connect(ctx.destination);
+              osc.start(now);
+              osc.stop(now + 0.04);
+            } else if (type === 'enter') {
+              const osc2 = ctx.createOscillator();
+              const gain2 = ctx.createGain();
+              osc.type = 'sine';
+              osc2.type = 'sine';
+              osc.frequency.setValueAtTime(520, now);
+              osc2.frequency.setValueAtTime(1040, now);
+              gain.gain.setValueAtTime(0.06, now);
+              gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+              gain2.gain.setValueAtTime(0.04, now);
+              gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+              osc.connect(gain);
+              gain.connect(ctx.destination);
+              osc2.connect(gain2);
+              gain2.connect(ctx.destination);
+              osc.start(now);
+              osc.stop(now + 0.15);
+              osc2.start(now);
+              osc2.stop(now + 0.15);
+            } else {
+              osc.type = 'sine';
+              const freq = 850 + Math.random() * 400;
+              osc.frequency.setValueAtTime(freq, now);
+              osc.frequency.exponentialRampToValueAtTime(300, now + 0.035);
+              gain.gain.setValueAtTime(0.04, now);
+              gain.gain.exponentialRampToValueAtTime(0.001, now + 0.035);
+              osc.connect(gain);
+              gain.connect(ctx.destination);
+              osc.start(now);
+              osc.stop(now + 0.035);
+            }
+          } catch (e) {}
         }
-        return audioCtx;
-      }
 
-      function playSciFiSound(type = 'char') {
-        if (!audioEnabled) return;
-        try {
-          const ctx = getAudioContext();
-          const now = ctx.currentTime;
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-
-          if (type === 'space') {
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(220, now);
-            osc.frequency.exponentialRampToValueAtTime(80, now + 0.055);
-
-            gain.gain.setValueAtTime(0.08, now);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.055);
-
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.start(now);
-            osc.stop(now + 0.055);
-          } else if (type === 'backspace') {
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(950, now);
-            osc.frequency.exponentialRampToValueAtTime(320, now + 0.04);
-
-            gain.gain.setValueAtTime(0.05, now);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
-
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.start(now);
-            osc.stop(now + 0.04);
-          } else if (type === 'enter') {
-            const osc2 = ctx.createOscillator();
-            const gain2 = ctx.createGain();
-            osc.type = 'sine';
-            osc2.type = 'sine';
-            osc.frequency.setValueAtTime(520, now);
-            osc2.frequency.setValueAtTime(1040, now);
-
-            gain.gain.setValueAtTime(0.06, now);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
-            gain2.gain.setValueAtTime(0.04, now);
-            gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
-
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc2.connect(gain2);
-            gain2.connect(ctx.destination);
-
-            osc.start(now);
-            osc.stop(now + 0.15);
-            osc2.start(now);
-            osc2.stop(now + 0.15);
-          } else {
-            osc.type = 'sine';
-            const baseFreq = 850 + Math.random() * 450;
-            osc.frequency.setValueAtTime(baseFreq, now);
-            osc.frequency.exponentialRampToValueAtTime(300, now + 0.035);
-
-            gain.gain.setValueAtTime(0.045, now);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.035);
-
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.start(now);
-            osc.stop(now + 0.035);
-          }
-        } catch (e) {}
-      }
-
-      function toggleAudio() {
-        audioEnabled = !audioEnabled;
-        document.getElementById("audioIcon").textContent = audioEnabled ? "🔊" : "🔇";
-        document.getElementById("audioLabel").textContent = audioEnabled ? "KEYSTROKE SFX: ON" : "KEYSTROKE SFX: OFF";
-      }
-
-      function attachWordAnimator() {
-        try {
-          const parentDoc = window.parent.document;
-          const input = parentDoc.querySelector("div[data-testid='stTextInput'] input") || parentDoc.querySelector("input");
-          if (!input) return;
-
-          const parentContainer = input.parentElement;
-          if (!parentContainer) return;
-
-          parentContainer.style.position = "relative";
-          input.style.position = "relative";
-          input.style.zIndex = "2";
-          input.style.color = "transparent";
-          input.style.caretColor = "transparent";
-          input.style.background = "transparent";
-
-          // Inject mirror CSS into parent head once
-          if (!parentDoc.getElementById("cyber-mirror-styles")) {
-            const style = parentDoc.createElement("style");
-            style.id = "cyber-mirror-styles";
-            style.innerHTML = `
-              .cyber-mirror-overlay {
-                position: absolute !important;
-                top: 0 !important;
-                left: 0 !important;
-                right: 0 !important;
-                bottom: 0 !important;
-                pointer-events: none !important;
-                font-family: 'JetBrains Mono', Consolas, monospace !important;
-                font-size: 0.92rem !important;
-                padding: 0.72rem 1rem !important;
-                line-height: normal !important;
-                display: flex !important;
-                align-items: center !important;
-                overflow: hidden !important;
-                white-space: pre !important;
-                color: #F8FAFC !important;
-                z-index: 1 !important;
-                user-select: none !important;
+        function initInput() {
+          try {
+            const parentDoc = window.parent.document;
+            // Mark the iframe container so parent CSS collapses it completely
+            if (window.frameElement) {
+              window.frameElement.setAttribute("data-testid", "cyber-script-frame");
+              window.frameElement.style.display = "none";
+              window.frameElement.style.height = "0";
+              window.frameElement.style.margin = "0";
+              window.frameElement.style.padding = "0";
+              const compParent = window.frameElement.closest("div[data-testid='stCustomComponentV1']");
+              if (compParent) {
+                compParent.style.display = "none";
+                compParent.style.height = "0";
+                compParent.style.margin = "0";
+                compParent.style.padding = "0";
               }
-              .cyber-word {
-                display: inline !important;
-              }
-              .cyber-word.new-word {
-                animation: wordNeonGlow 0.4s ease-out !important;
-              }
-              .cyber-char {
-                display: inline-block !important;
-              }
-              .cyber-char.new-char {
-                animation: cyberCharAppear 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
-              }
-              .cyber-caret-block {
-                display: inline-block !important;
-                color: #38BDF8 !important;
-                font-weight: 900 !important;
-                text-shadow: 0 0 10px #38BDF8, 0 0 20px rgba(56, 189, 248, 0.8) !important;
-                animation: caretBlink 0.8s infinite !important;
-                margin-left: 2px !important;
-              }
-              @keyframes cyberCharAppear {
-                0% {
-                  opacity: 0;
-                  transform: translateY(-6px) scale(1.45);
-                  color: #22D3EE;
-                  text-shadow: 0 0 16px #22D3EE, 0 0 32px #38BDF8;
-                  filter: blur(1px);
-                }
-                50% {
-                  opacity: 1;
-                  transform: translateY(1px) scale(1.15);
-                  color: #A78BFA;
-                  text-shadow: 0 0 12px #A78BFA, 0 0 24px #8B5CF6;
-                  filter: blur(0px);
-                }
-                100% {
-                  opacity: 1;
-                  transform: translateY(0) scale(1.0);
-                  color: #F8FAFC;
-                  text-shadow: 0 0 6px rgba(56, 189, 248, 0.4);
-                }
-              }
-              @keyframes wordNeonGlow {
-                0% { text-shadow: 0 0 20px #38BDF8, 0 0 40px #8B5CF6; color: #FFFFFF; }
-                100% { text-shadow: 0 0 6px rgba(56, 189, 248, 0.4); color: #F8FAFC; }
-              }
-              @keyframes caretBlink {
-                0%, 49% { opacity: 1; }
-                50%, 100% { opacity: 0; }
-              }
-            `;
-            parentDoc.head.appendChild(style);
-          }
-
-          // Check or create mirror overlay
-          let overlay = parentContainer.querySelector(".cyber-mirror-overlay");
-          if (!overlay) {
-            overlay = parentDoc.createElement("div");
-            overlay.className = "cyber-mirror-overlay";
-            parentContainer.insertBefore(overlay, input);
-          }
-
-          let lastVal = input.value || "";
-
-          function renderWords(isNewKeystroke = false, keyType = "char") {
-            const val = input.value;
-            overlay.innerHTML = "";
-            if (!val) {
-              overlay.innerHTML = '<span style="color: #64748B;">Enter any topic, question, or research query across the public web...</span><span class="cyber-caret-block">█</span>';
-              lastVal = "";
-              return;
             }
 
-            const words = val.split(" ");
-            words.forEach((w, wIdx) => {
-              const wordSpan = parentDoc.createElement("span");
-              wordSpan.className = "cyber-word";
-              if (isNewKeystroke && keyType === "space" && wIdx === words.length - 2) {
-                wordSpan.classList.add("new-word");
+            const inputContainers = parentDoc.querySelectorAll("div[data-testid='stTextInput']");
+            inputContainers.forEach((container) => {
+              const input = container.querySelector("input");
+              if (!input || input.__cyberKineticBound) return;
+              input.__cyberKineticBound = true;
+
+              container.style.position = "relative";
+
+              let popLayer = container.querySelector(".cyber-pop-layer");
+              if (!popLayer) {
+                popLayer = parentDoc.createElement("div");
+                popLayer.className = "cyber-pop-layer";
+                container.appendChild(popLayer);
               }
-              for (let i = 0; i < w.length; i++) {
-                const charSpan = parentDoc.createElement("span");
-                charSpan.className = "cyber-char";
-                charSpan.textContent = w[i];
-                if (isNewKeystroke && val.length > lastVal.length && wIdx === words.length - 1 && i >= w.length - (val.length - lastVal.length)) {
-                  charSpan.classList.add("new-char");
+
+              const canvas = parentDoc.createElement("canvas");
+              const ctx = canvas.getContext("2d");
+
+              input.addEventListener("keydown", (e) => {
+                let soundType = "char";
+                if (e.key === " ") soundType = "space";
+                else if (e.key === "Backspace") soundType = "backspace";
+                else if (e.key === "Enter") soundType = "enter";
+
+                playSound(soundType);
+                input.classList.add("cyber-typing-active");
+                setTimeout(() => input.classList.remove("cyber-typing-active"), 250);
+
+                if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                  const compStyle = window.parent.getComputedStyle(input);
+                  ctx.font = `${compStyle.fontSize} ${compStyle.fontFamily}`;
+
+                  const caretPos = input.selectionStart || 0;
+                  const textBefore = (input.value || "").substring(0, caretPos);
+                  const textMetrics = ctx.measureText(textBefore);
+
+                  const paddingLeft = parseFloat(compStyle.paddingLeft) || 16;
+                  const paddingTop = parseFloat(compStyle.paddingTop) || 12;
+                  const charX = paddingLeft + textMetrics.width - input.scrollLeft;
+                  const charY = paddingTop;
+
+                  const pop = parentDoc.createElement("span");
+                  pop.className = "cyber-kinetic-pop";
+                  pop.textContent = e.key;
+                  pop.style.left = `${charX}px`;
+                  pop.style.top = `${charY}px`;
+
+                  popLayer.appendChild(pop);
+                  setTimeout(() => pop.remove(), 280);
                 }
-                wordSpan.appendChild(charSpan);
-              }
-              overlay.appendChild(wordSpan);
-              if (wIdx < words.length - 1) {
-                const space = parentDoc.createElement("span");
-                space.textContent = " ";
-                overlay.appendChild(space);
-              }
+              });
             });
+          } catch (e) {}
+        }
 
-            const caret = parentDoc.createElement("span");
-            caret.className = "cyber-caret-block";
-            caret.textContent = "█";
-            overlay.appendChild(caret);
-
-            lastVal = val;
+        initInput();
+        try {
+          const parentDoc = window.parent.document;
+          if (!window.parent.__cyberObserver) {
+            const observer = new MutationObserver(() => {
+              initInput();
+            });
+            observer.observe(parentDoc.body, { childList: true, subtree: true });
+            window.parent.__cyberObserver = observer;
           }
-
-          function onKey(e) {
-            let type = "char";
-            if (e.key === " ") type = "space";
-            else if (e.key === "Backspace") type = "backspace";
-            else if (e.key === "Enter") type = "enter";
-
-            playSciFiSound(type);
-            input.classList.add("cyber-typing-active");
-            setTimeout(() => input.classList.remove("cyber-typing-active"), 350);
-            renderWords(true, type);
-          }
-
-          if (!input.__cyberWordAttached) {
-            input.__cyberWordAttached = true;
-            input.addEventListener("input", () => renderWords(true, "char"));
-            input.addEventListener("keydown", onKey);
-            input.addEventListener("focus", () => renderWords(false));
-            input.addEventListener("blur", () => renderWords(false));
-          }
-
-          renderWords(false);
         } catch (e) {}
-      }
-
-      attachWordAnimator();
-      setInterval(attachWordAnimator, 1000);
+      })();
     </script>
     </body>
     </html>
     """
-    components.html(animator_html, height=28)
+    components.html(animator_html, height=0)
 
 
 def render_futuristic_direct_answer(active_res: SearchPipelineResult):
@@ -645,6 +507,72 @@ def render_futuristic_direct_answer(active_res: SearchPipelineResult):
     components.html(terminal_html, height=calc_height)
 
 
+def render_discovered_search_results(active_res: SearchPipelineResult):
+    """Renders the real discovered web search results in structured cards with status, snippets, and domains."""
+    ranked = getattr(active_res, "ranked_results", [])
+    if not ranked:
+        return
+
+    # Map extracted evidence by URL for crawl status reporting
+    evidence_by_url = {}
+    for ev in getattr(active_res, "extracted_evidence", []):
+        if ev.url:
+            evidence_by_url[ev.url] = ev
+
+    st.markdown(f"""
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.2rem; margin-bottom: 0.6rem; flex-wrap: wrap; gap: 0.5rem;">
+            <div style="font-size: 0.78rem; font-weight: 800; letter-spacing: 0.08em; color: #38BDF8; text-transform: uppercase;">
+                🌐 DISCOVERED WEB SEARCH RESULTS ({len(ranked)} Sources Discovered)
+            </div>
+            <div style="font-size: 0.68rem; color: #94A3B8; font-family: 'JetBrains Mono', monospace;">
+                SEARCH DISCOVERY ➔ EVIDENCE EXTRACTION ➔ CRAWL READY
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+    for idx, res in enumerate(ranked):
+        r_rank = idx + 1
+        r_title = html.escape(res.title or "Untitled Web Result")
+        r_url = res.url or ""
+        r_safe_url = html.escape(r_url)
+        r_domain = html.escape(res.display_domain or "web")
+        r_snippet = html.escape(res.snippet or "No preview snippet available for this discovered web source.")
+        r_type = html.escape(getattr(res, "source_type", "Web Source"))
+
+        ev = evidence_by_url.get(r_url)
+        if ev and getattr(ev, "fetch_success", True) and not getattr(ev, "error_message", None):
+            passages_count = len(getattr(ev, "passages", []))
+            crawl_badge = f'<span style="background: rgba(34, 197, 94, 0.15); border: 1px solid #22C55E; color: #22C55E; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.68rem; font-weight: 700;">✓ Crawled &amp; Analyzed ({passages_count} passages)</span>'
+        elif ev:
+            err = getattr(ev, "error_message", None) or "Partial"
+            crawl_badge = f'<span style="background: rgba(245, 158, 11, 0.15); border: 1px solid #F59E0B; color: #F59E0B; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.68rem; font-weight: 700;">⚠️ Fetch Notice ({html.escape(err)})</span>'
+        else:
+            crawl_badge = '<span style="background: rgba(56, 189, 248, 0.15); border: 1px solid #38BDF8; color: #38BDF8; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.68rem; font-weight: 700;">🟢 Discovered &amp; Ranked</span>'
+
+        st.markdown(f"""
+            <div class="kpi-card" style="padding: 0.95rem 1.2rem; margin-bottom: 0.75rem; border-left: 3px solid #38BDF8;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.35rem;">
+                    <div style="font-size: 0.96rem; font-weight: 800; color: #FFFFFF;">
+                        <span style="color: #38BDF8; font-family: 'JetBrains Mono', monospace; margin-right: 0.4rem;">[#{r_rank}]</span>
+                        <a href="{r_safe_url}" target="_blank" rel="noopener noreferrer" style="color: #FFFFFF; text-decoration: none; border-bottom: 1px dotted #38BDF8;">{r_title}</a>
+                    </div>
+                    <div style="display: flex; gap: 0.4rem; align-items: center;">
+                        <span style="background: rgba(139, 92, 246, 0.15); border: 1px solid #8B5CF6; color: #C4B5FD; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.68rem; font-weight: 700;">
+                            {r_type}
+                        </span>
+                        {crawl_badge}
+                    </div>
+                </div>
+                <div style="font-size: 0.74rem; color: #94A3B8; font-family: 'JetBrains Mono', monospace; margin-bottom: 0.45rem;">
+                    <b>{r_domain}</b> &bull; <a href="{r_safe_url}" target="_blank" rel="noopener noreferrer" style="color: #38BDF8; text-decoration: underline;">{r_safe_url}</a>
+                </div>
+                <div style="font-size: 0.84rem; color: #CBD5E1; line-height: 1.5; margin-bottom: 0.4rem;">
+                    {r_snippet}
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+
+
 def render_search_view(pipeline: SearchPipeline, db: CrawlDatabase):
     """Renders the complete web search and grounded answer interface."""
 
@@ -662,10 +590,13 @@ def render_search_view(pipeline: SearchPipeline, db: CrawlDatabase):
         </div>
     """, unsafe_allow_html=True)
 
-    # Real-Time Kinetic Word Animator & SFX Engine (animates words directly on input)
-    render_cyber_word_animator()
+    # Real-Time Kinetic Typing Animator & Web Audio SFX Engine (inside real search input)
+    render_real_input_cyber_animator()
 
     col_q, col_btn = st.columns([5.5, 1.5])
+
+    def on_search_query_submit():
+        st.session_state["trigger_auto_search"] = True
 
     with col_q:
         current_query = st.session_state.get("search_query_input", "latest developments in quantum computing")
@@ -675,6 +606,7 @@ def render_search_view(pipeline: SearchPipeline, db: CrawlDatabase):
             placeholder="Enter any topic, question, or research query across the public web...",
             key="search_query_input",
             label_visibility="collapsed",
+            on_change=on_search_query_submit,
         )
 
     with col_btn:
@@ -886,6 +818,9 @@ def render_search_view(pipeline: SearchPipeline, db: CrawlDatabase):
         with st.expander("ℹ️ Why this confidence rating? (Explainable Verification Signals)", expanded=False):
             for rat in confidence.rationales:
                 st.markdown(f"▸ {rat}")
+
+    # 4b. Discovered Web Search Results Deck (Real Search Items)
+    render_discovered_search_results(active_res)
 
     # 5. Direct Answer Hero Card (Futuristic Cyber Typewriter Terminal)
     if answer:
