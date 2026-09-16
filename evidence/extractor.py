@@ -398,6 +398,8 @@ class EvidenceExtractor:
         )
 
         if resp and resp.status_code == 200:
+            if resp.encoding is None or resp.encoding.upper() == "ISO-8859-1":
+                resp.encoding = resp.apparent_encoding or "utf-8"
             content_type = resp.headers.get("Content-Type", "").lower()
             if "text/html" in content_type or "application/xhtml" in content_type or not content_type:
                 return self.extract_from_html(

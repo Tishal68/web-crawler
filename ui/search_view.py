@@ -573,6 +573,12 @@ def render_discovered_search_results(active_res: SearchPipelineResult):
         """, unsafe_allow_html=True)
 
 
+def set_search_query_callback(query_text: str):
+    """Safely updates search query and flags auto-search before widget instantiation."""
+    st.session_state["search_query_input"] = query_text
+    st.session_state["trigger_auto_search"] = True
+
+
 def render_search_view(pipeline: SearchPipeline, db: CrawlDatabase):
     """Renders the complete web search and grounded answer interface."""
 
@@ -598,11 +604,12 @@ def render_search_view(pipeline: SearchPipeline, db: CrawlDatabase):
     def on_search_query_submit():
         st.session_state["trigger_auto_search"] = True
 
+    if "search_query_input" not in st.session_state:
+        st.session_state["search_query_input"] = "latest developments in quantum computing"
+
     with col_q:
-        current_query = st.session_state.get("search_query_input", "latest developments in quantum computing")
         query_val = st.text_input(
             "Search Query",
-            value=current_query,
             placeholder="Enter any topic, question, or research query across the public web...",
             key="search_query_input",
             label_visibility="collapsed",
@@ -616,10 +623,13 @@ def render_search_view(pipeline: SearchPipeline, db: CrawlDatabase):
     preset_cols = st.columns(len(SEARCH_PRESETS))
     for p_idx, (p_name, p_query) in enumerate(SEARCH_PRESETS.items()):
         with preset_cols[p_idx]:
-            if st.button(p_name, key=f"btn_search_preset_{p_idx}", use_container_width=True):
-                st.session_state["search_query_input"] = p_query
-                st.session_state["trigger_auto_search"] = True
-                st.rerun()
+            st.button(
+                p_name,
+                key=f"btn_search_preset_{p_idx}",
+                use_container_width=True,
+                on_click=set_search_query_callback,
+                args=(p_query,),
+            )
 
     # Search Configuration Expander
     with st.expander("⚙️ Search Engine & Evidence Parameters", expanded=False):
@@ -870,10 +880,13 @@ def render_search_view(pipeline: SearchPipeline, db: CrawlDatabase):
         f_cols = st.columns(min(len(follow_ups), 4))
         for f_idx, f_query in enumerate(follow_ups[:4]):
             with f_cols[f_idx]:
-                if st.button(f"🔍 {f_query}", key=f"btn_follow_up_{f_idx}", use_container_width=True):
-                    st.session_state["search_query_input"] = f_query
-                    st.session_state["trigger_auto_search"] = True
-                    st.rerun()
+                st.button(
+                    f"🔍 {f_query}",
+                    key=f"btn_follow_up_{f_idx}",
+                    use_container_width=True,
+                    on_click=set_search_query_callback,
+                    args=(f_query,),
+                )
 
     # 5d. Coverage Telemetry Expander
     coverage = getattr(active_res, "coverage", None) or getattr(answer, "coverage_report", None)
@@ -1066,10 +1079,13 @@ def render_search_history_view(db: CrawlDatabase):
         col_act1, col_act2 = st.columns([3, 1])
         with col_act1:
             q_label = item['query'][:35] + "..." if len(item['query']) > 35 else item['query']
-            if st.button(f"⚡ Re-run \"{q_label}\"", key=f"btn_rerun_h_{h_id}", use_container_width=True):
-                st.session_state["search_query_input"] = item["query"]
-                st.session_state["trigger_auto_search"] = True
-                st.rerun()
+            st.button(
+                f"⚡ Re-run \"{q_label}\"",
+                key=f"btn_rerun_h_{h_id}",
+                use_container_width=True,
+                on_click=set_search_query_callback,
+                args=(item["query"],),
+            )
         with col_act2:
             if st.button("🗑️ Delete", key=f"btn_del_h_{h_id}", use_container_width=True):
                 db.delete_search_history(h_id)

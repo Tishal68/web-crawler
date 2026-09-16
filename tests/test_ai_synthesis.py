@@ -1,4 +1,4 @@
-﻿"""
+"""
 Unit tests for AI synthesis, HostedLlamaProvider, CitationValidator, and deterministic research synthesizer.
 """
 
