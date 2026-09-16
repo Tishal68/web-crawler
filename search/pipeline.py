@@ -5,6 +5,7 @@ Cross-Source Verification, Contradiction Detection, and Grounded Answer Generati
 """
 
 import time
+import re
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional, Callable
 
@@ -23,6 +24,7 @@ from evidence.coverage import cluster_evidence_by_facets, EvidenceCoverageReport
 from answer.generator import GroundedAnswer, AnswerGenerator
 from crawler.database import CrawlDatabase
 from ai import BaseLLMProvider
+from answer.word_count import extract_requested_word_count
 
 
 @dataclass
@@ -39,6 +41,7 @@ class SearchPipelineResult:
     coverage: Optional[EvidenceCoverageReport] = None
     answer: Optional[GroundedAnswer] = None
     total_elapsed: float = 0.0
+    requested_word_count: Optional[int] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -52,8 +55,8 @@ class SearchPipelineResult:
             "coverage": self.coverage.to_dict() if self.coverage else None,
             "answer": self.answer.to_dict() if self.answer else None,
             "total_elapsed": round(self.total_elapsed, 3),
+            "requested_word_count": self.requested_word_count,
         }
-
 
 
 class SearchPipeline:
@@ -84,10 +87,9 @@ class SearchPipeline:
             if self.google_provider.is_available():
                 return self.google_provider
             return self.multi_provider
-        elif req == "multi" or req == "bing":
+        elif req in ("multi", "bing"):
             return self.multi_provider
 
-        # Auto-selection: use Google if configured, else MultiEngine fallback
         if self.google_provider.is_available():
             return self.google_provider
         return self.multi_provider
@@ -95,14 +97,15 @@ class SearchPipeline:
     def run(
         self,
         query: str,
-        num_sources: int = 8,
+        num_sources: int = 12,
         provider_preference: str = "auto",
         progress_callback: Optional[Callable[[str, float], None]] = None,
         conversation_history: Optional[List[Dict[str, str]]] = None,
         target_language: str = "en",
     ) -> SearchPipelineResult:
-        """Execute end-to-end search pipeline."""
+        """Execute end-to-end search pipeline with adaptive source/evidence depth."""
         start_time = time.time()
+        requested_word_count = extract_requested_word_count(query)
 
         def _update(status: str, pct: float):
             if progress_callback:
@@ -116,29 +119,29 @@ class SearchPipeline:
         search_target = query
         if conversation_history:
             search_target = rewrite_follow_up_query(query, conversation_history)
-
         analysis = self.query_analyzer.analyze(search_target)
 
-        # 2. Select and query search provider
+        # 2. Select and query search provider. Retrieve a healthy evidence buffer.
         provider = self.get_preferred_provider(provider_preference)
         _update(f"Searching web via {provider.provider_name}...", 0.25)
 
-        # Check Cache
-        cached_set = self.cache.get(search_target, provider.provider_name, num_sources)
+        # Exact-count requests still need broad retrieval because the final answer must
+        # be information-dense rather than padded.
+        effective_source_target = max(12, num_sources)
+        cached_set = self.cache.get(search_target, provider.provider_name, effective_source_target)
         if cached_set:
             result_set = cached_set
         else:
-            # Fetch candidate results (extra buffer to allow ranking & diversity filtering)
-            fetch_count = min(20, num_sources + 5)
+            fetch_count = min(30, effective_source_target + 12)
             result_set = provider.search(search_target, num_results=fetch_count)
 
-            # Multi-angle query discovery for complex multi-facet queries
+            # Multi-angle query discovery for complex multi-facet queries.
             if getattr(analysis, "facets", None) and len(analysis.facets) > 1:
                 seen_urls = {r.url for r in result_set.results}
-                for facet in analysis.facets[:3]:
+                for facet in analysis.facets[:4]:
                     if facet.search_query and facet.search_query.strip().lower() != query.strip().lower():
                         try:
-                            f_res = provider.search(facet.search_query, num_results=3)
+                            f_res = provider.search(facet.search_query, num_results=4)
                             for r in f_res.results:
                                 if r.url not in seen_urls:
                                     seen_urls.add(r.url)
@@ -146,60 +149,58 @@ class SearchPipeline:
                         except Exception:
                             pass
 
-            self.cache.set(query, provider.provider_name, result_set, num_results=num_sources)
+            self.cache.set(query, provider.provider_name, result_set, num_results=effective_source_target)
 
-        # 3. Multi-factor Result Ranking
-        _update("Ranking sources by authority, relevance, and diversity...", 0.45)
+        # 3. Multi-factor result ranking with controlled domain diversity.
+        _update("Ranking sources by authority, relevance, freshness, and diversity...", 0.45)
         ranked = rank_search_results(
             results=result_set.results,
             query_analysis=analysis,
-            max_results=num_sources,
+            max_results=effective_source_target,
             domain_diversity_limit=2,
         )
 
-        # 4. Deep Page Fetching & Evidence Extraction
-        _update("Fetching pages and extracting structured evidence...", 0.65)
+        # 4. Deep page fetching and evidence extraction.
+        _update("Fetching multiple independent sources and extracting evidence...", 0.62)
         extracted_pages = self.evidence_extractor.extract_from_search_results(
             results=ranked,
-            max_workers=min(4, max(1, len(ranked))),
+            max_workers=min(6, max(1, len(ranked))),
         )
 
-
-        # 5. Extract & Rank Structured Passages with Facet Clustering
-        _update("Extracting relevant passages and mapping topic facets...", 0.75)
+        # 5. Keep a substantially larger evidence pool for synthesis.
+        _update("Building a broader evidence set for detailed synthesis...", 0.72)
         all_passages: List[EvidencePassage] = []
         for page in extracted_pages:
             all_passages.extend(page.passages)
 
+        evidence_limit = 36 if requested_word_count is None else min(48, max(36, requested_word_count // 8))
         top_passages = rank_and_filter_passages(
             passages=all_passages,
             query_analysis=analysis,
-            max_passages=12,
+            max_passages=evidence_limit,
         )
 
-        # Cluster evidence across decomposed query facets
         coverage = cluster_evidence_by_facets(
-            passages=all_passages if len(all_passages) < 60 else top_passages,
+            passages=all_passages if len(all_passages) < 100 else top_passages,
             facets=getattr(analysis, "facets", []),
         )
 
-        # Iterative Deep Research Loop for complex multi-facet topics with uncovered facets
+        # 6. Iterative deep-research loop for complex multi-facet topics.
         is_complex = getattr(analysis, "complexity", None) == QueryComplexity.COMPLEX
         if is_complex and coverage and coverage.unverified_requirements:
-            uncovered_facet = next(
-                (f for f in getattr(analysis, "facets", []) if f.title in coverage.unverified_requirements and f.search_query),
-                None,
-            )
-            if uncovered_facet:
-                _update(f"Deep Research Loop: targeted retrieval for '{uncovered_facet.title}'...", 0.80)
+            for uncovered_facet in [
+                f for f in getattr(analysis, "facets", [])
+                if f.title in coverage.unverified_requirements and f.search_query
+            ][:2]:
+                _update(f"Deep Research Loop: targeted retrieval for '{uncovered_facet.title}'...", 0.79)
                 try:
-                    target_res = provider.search(uncovered_facet.search_query, num_results=3)
+                    target_res = provider.search(uncovered_facet.search_query, num_results=4)
                     existing_urls = {p.url for p in extracted_pages}
                     new_candidates = [r for r in target_res.results if r.url not in existing_urls]
                     if new_candidates:
                         new_pages = self.evidence_extractor.extract_from_search_results(
-                            results=new_candidates[:2],
-                            max_workers=min(2, len(new_candidates)),
+                            results=new_candidates[:3],
+                            max_workers=min(3, len(new_candidates)),
                         )
                         for np in new_pages:
                             extracted_pages.append(np)
@@ -207,24 +208,24 @@ class SearchPipeline:
                         top_passages = rank_and_filter_passages(
                             passages=all_passages,
                             query_analysis=analysis,
-                            max_passages=15,
+                            max_passages=evidence_limit,
                         )
                         coverage = cluster_evidence_by_facets(
-                            passages=all_passages if len(all_passages) < 80 else top_passages,
+                            passages=all_passages if len(all_passages) < 120 else top_passages,
                             facets=getattr(analysis, "facets", []),
                         )
                 except Exception:
                     pass
 
-        # 6. Verification, Corroboration & Contradiction Detection
-        _update("Cross-checking sources and verifying facts...", 0.85)
+        # 7. Verification, corroboration, and contradiction detection.
+        _update("Cross-checking sources and verifying facts...", 0.86)
         verification = self.verifier.verify(
             extracted_evidence=extracted_pages,
             top_passages=top_passages,
             query_analysis=analysis,
         )
 
-        # 7. Grounded Confidence Scoring (Never 100%)
+        # 8. Grounded confidence scoring.
         confidence = calculate_confidence(
             independent_domains=verification["independent_domains"],
             contradictions=verification["contradictions"],
@@ -232,8 +233,8 @@ class SearchPipeline:
             is_time_sensitive=analysis.is_time_sensitive,
         )
 
-        # 8. Synthesize Grounded Answer & Citations
-        _update("Synthesizing grounded answer and verified citations...", 0.95)
+        # 9. Detailed grounded synthesis + exact-count refinement when requested.
+        _update("Synthesizing detailed, source-backed answer...", 0.94)
         answer = self.answer_generator.generate_answer(
             query=query,
             query_analysis=analysis,
@@ -243,12 +244,12 @@ class SearchPipeline:
             coverage_report=coverage,
             history=conversation_history,
             target_language=target_language,
+            requested_word_count=requested_word_count,
         )
 
         total_elapsed = time.time() - start_time
         _update("Complete", 1.0)
 
-        # Persist to database if available
         if self.db:
             try:
                 self.db.save_search_history(
@@ -264,6 +265,7 @@ class SearchPipeline:
                         "analysis": analysis.to_dict(),
                         "ranked_urls": [r.url for r in ranked],
                         "coverage": coverage.to_dict() if coverage else None,
+                        "requested_word_count": requested_word_count,
                         "total_elapsed": round(total_elapsed, 3),
                     },
                 )
@@ -282,5 +284,5 @@ class SearchPipeline:
             coverage=coverage,
             answer=answer,
             total_elapsed=total_elapsed,
+            requested_word_count=requested_word_count,
         )
-
