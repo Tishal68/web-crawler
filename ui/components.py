@@ -10,6 +10,20 @@ import html
 import streamlit as st
 from crawler.models import CrawlSessionSummary, PageResult
 
+__all__ = [
+    "apply_custom_styles",
+    "render_app_topbar",
+    "render_workspace_hero",
+    "render_platform_header",
+    "render_header",
+    "render_empty_state",
+    "render_callout",
+    "render_control_label",
+    "render_sidebar_label",
+    "render_completion_banner",
+    "render_kpi_cards",
+]
+
 
 def apply_custom_styles():
     """Inject high-end dark premium visual styling, glassmorphism, and orange/purple accents."""

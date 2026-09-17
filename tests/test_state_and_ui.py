@@ -228,3 +228,39 @@ class TestWorkspaceNavigationAndStateSync:
         st.session_state["sidebar_nav_workspace"] = "⚙️ Settings & System"
         on_workspace_nav_change()
         assert st.session_state["active_workspace"] == "⚙️ Settings & System"
+
+
+class TestUiComponentImportsAndBootstrap:
+    """Ensure UI components and submodules import cleanly without circular dependencies."""
+
+    def test_ui_components_clean_import(self):
+        """Verify all functions imported by app.py are present in ui.components."""
+        from ui.components import (
+            apply_custom_styles,
+            render_header,
+            render_platform_header,
+            render_app_topbar,
+            render_workspace_hero,
+            render_kpi_cards,
+            render_completion_banner,
+            render_empty_state,
+            render_callout,
+        )
+        assert callable(apply_custom_styles)
+        assert callable(render_header)
+        assert callable(render_platform_header)
+        assert callable(render_app_topbar)
+        assert callable(render_workspace_hero)
+        assert callable(render_kpi_cards)
+        assert callable(render_completion_banner)
+        assert callable(render_empty_state)
+        assert callable(render_callout)
+
+    def test_ui_package_lazy_getattr(self):
+        """Verify ui package lazy attributes resolve without circular import."""
+        import ui
+        search_view = getattr(ui, "render_search_view")
+        assert callable(search_view)
+        inspector = getattr(ui, "render_source_inspector")
+        assert callable(inspector)
+

@@ -14,7 +14,7 @@ import streamlit as st
 from search.pipeline import SearchPipeline, SearchPipelineResult
 from crawler.database import CrawlDatabase
 from answer.word_count import count_words
-from ui.components import render_callout, render_empty_state
+from .components import render_callout, render_empty_state
 
 
 def format_text_with_citations(raw_text: str) -> str:
