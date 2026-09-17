@@ -93,7 +93,7 @@ class LiveProgressContainer(tuple):
 def render_live_progress_container():
     """
     Creates and returns references to empty Streamlit placeholders
-    for live streaming of crawl metrics in a futuristic cyber-console format.
+    for live streaming of crawl metrics in dark premium format.
     Returns:
         progress_container, progress_bar, status_text, stat_pages, stat_queue, stat_elapsed
     """
@@ -101,8 +101,16 @@ def render_live_progress_container():
 
     with progress_container:
         st.markdown("""
-            <div style="font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; color: #22D3EE; text-transform: uppercase; margin-bottom: 0.4rem;">
-                // ACTIVE CRAWL MONITORING TELEMETRY
+            <div style="background: rgba(16, 20, 34, 0.85); border: 1px solid rgba(249, 115, 22, 0.3); border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1rem; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.76rem; font-weight: 800; letter-spacing: 0.08em; color: #F97316; text-transform: uppercase;">
+                        <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #F97316; box-shadow: 0 0 10px #F97316; animation: pulse 1.5s infinite;"></span>
+                        LIVE CRAWL ENGINE // TRAVERSAL IN PROGRESS
+                    </div>
+                    <div style="font-size: 0.72rem; color: #A855F7; font-family: 'JetBrains Mono', monospace; font-weight: 600;">
+                        BFS PROTOCOL ACTIVE
+                    </div>
+                </div>
             </div>
         """, unsafe_allow_html=True)
 
@@ -134,10 +142,17 @@ def render_live_progress_container():
 def render_results_section(pages: List[PageResult], summary: Optional[CrawlSessionSummary] = None):
     """Render interactive results table with search, depth filter, and downloads."""
     st.markdown("""
-        <div style="font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; color: #22D3EE; text-transform: uppercase; margin-bottom: 0.3rem;">
-            // CRAWLED WEBPAGES TELEMETRY
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem; flex-wrap: wrap; gap: 0.5rem;">
+            <div>
+                <div style="font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; color: #F97316; text-transform: uppercase; margin-bottom: 0.2rem;">
+                    DATA EXPLORER
+                </div>
+                <h3 style="margin: 0; color: #FFFFFF; font-weight: 800; font-size: 1.3rem;">Crawled Webpages Results</h3>
+            </div>
+            <div style="font-size: 0.75rem; color: #94A3B8;">
+                Structured telemetry indexed across depth frontier
+            </div>
         </div>
-        <h3 style="margin-top: 0; color: #FFFFFF; font-weight: 700; font-size: 1.35rem;">Crawled Webpages Results</h3>
     """, unsafe_allow_html=True)
 
     if not pages:
@@ -151,7 +166,7 @@ def render_results_section(pages: List[PageResult], summary: Optional[CrawlSessi
     with col_filter1:
         search_query = st.text_input(
             "Search Query",
-            placeholder="Search URL, Title, or Domain...",
+            placeholder="Filter by URL, Title, Domain, or Snippet...",
             key="results_search_box",
             label_visibility="collapsed",
         )
@@ -174,7 +189,6 @@ def render_results_section(pages: List[PageResult], summary: Optional[CrawlSessi
             if "Snippet" in filtered_df.columns
             else pd.Series(False, index=filtered_df.index)
         )
-        # Literal string match (regex=False) to prevent errors on special regex characters
         mask = (
             filtered_df["URL"].astype(str).str.lower().str.contains(query_lower, regex=False, na=False) |
             filtered_df["Title"].astype(str).str.lower().str.contains(query_lower, regex=False, na=False) |
@@ -190,7 +204,7 @@ def render_results_section(pages: List[PageResult], summary: Optional[CrawlSessi
     if selected_status != "All Status Codes":
         filtered_df = filtered_df[filtered_df["Status"] == int(selected_status)]
 
-    # Quick telemetry strip for filtered view
+    # Telemetry strip for filtered view
     if filtered_df.empty:
         status_200_count = 0
         avg_latency = 0.0
@@ -205,18 +219,18 @@ def render_results_section(pages: List[PageResult], summary: Optional[CrawlSessi
         total_matches = int(filtered_df["Matches"].sum()) if "Matches" in filtered_df else 0
 
     match_badge = (
-        f'<span style="background: rgba(244, 63, 94, 0.08); border: 1px solid rgba(244, 63, 94, 0.25); padding: 0.25rem 0.65rem; border-radius: 4px; color: #FDA4AF;"><b>Matches:</b> {total_matches:,}</span>'
+        f'<span style="background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.3); padding: 0.25rem 0.65rem; border-radius: 6px; color: #FCA5A5;"><b>Matches:</b> {total_matches:,}</span>'
         if total_matches > 0 else ""
     )
 
     pills_html = (
-        f'<div style="display: flex; gap: 0.8rem; margin-bottom: 0.8rem; flex-wrap: wrap; font-size: 0.78rem;">'
-        f'<span style="background: rgba(34, 211, 238, 0.08); border: 1px solid rgba(34, 211, 238, 0.25); padding: 0.25rem 0.65rem; border-radius: 4px; color: #22D3EE;"><b>Showing:</b> {len(filtered_df)} of {len(df)} Pages</span>'
-        f'<span style="background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.25); padding: 0.25rem 0.65rem; border-radius: 4px; color: #22C55E;"><b>200 OK:</b> {status_200_count}</span>'
-        f'<span style="background: rgba(139, 92, 246, 0.08); border: 1px solid rgba(139, 92, 246, 0.25); padding: 0.25rem 0.65rem; border-radius: 4px; color: #A78BFA;"><b>Avg Latency:</b> {avg_latency * 1000:.0f} ms</span>'
-        f'<span style="background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.25); padding: 0.25rem 0.65rem; border-radius: 4px; color: #D8B4FE;"><b>Words Mined:</b> {total_words:,}</span>'
+        f'<div style="display: flex; gap: 0.65rem; margin-bottom: 0.85rem; flex-wrap: wrap; font-size: 0.78rem;">'
+        f'<span style="background: rgba(249, 115, 22, 0.12); border: 1px solid rgba(249, 115, 22, 0.3); padding: 0.25rem 0.65rem; border-radius: 6px; color: #FB923C;"><b>Showing:</b> {len(filtered_df)} of {len(df)} Pages</span>'
+        f'<span style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); padding: 0.25rem 0.65rem; border-radius: 6px; color: #34D399;"><b>200 OK:</b> {status_200_count}</span>'
+        f'<span style="background: rgba(168, 85, 247, 0.12); border: 1px solid rgba(168, 85, 247, 0.3); padding: 0.25rem 0.65rem; border-radius: 6px; color: #C084FC;"><b>Avg Latency:</b> {avg_latency * 1000:.0f} ms</span>'
+        f'<span style="background: rgba(168, 85, 247, 0.12); border: 1px solid rgba(168, 85, 247, 0.3); padding: 0.25rem 0.65rem; border-radius: 6px; color: #E9D5FF;"><b>Words Mined:</b> {total_words:,}</span>'
         f'{match_badge}'
-        f'<span style="background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.10); padding: 0.25rem 0.65rem; border-radius: 4px; color: #94A3B8;"><b>Discovered Links:</b> {total_extracted:,}</span>'
+        f'<span style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.12); padding: 0.25rem 0.65rem; border-radius: 6px; color: #94A3B8;"><b>Discovered Links:</b> {total_extracted:,}</span>'
         f'</div>'
     )
     st.markdown(pills_html, unsafe_allow_html=True)
@@ -253,7 +267,7 @@ def render_results_section(pages: List[PageResult], summary: Optional[CrawlSessi
     with col_dl1:
         csv_data = sanitize_dataframe_for_csv(filtered_df).to_csv(index=False).encode("utf-8")
         st.download_button(
-            label="⬇ Download Results (CSV)",
+            label="⬇ Export Results (CSV)",
             data=csv_data,
             file_name=f"crawled_pages_{safe_sid}.csv",
             mime="text/csv",
@@ -262,7 +276,7 @@ def render_results_section(pages: List[PageResult], summary: Optional[CrawlSessi
     with col_dl2:
         full_json = json.dumps([p.to_dict() for p in pages], indent=2).encode("utf-8")
         st.download_button(
-            label="⬇ Download Full Data (JSON)",
+            label="⬇ Export Full Data (JSON)",
             data=full_json,
             file_name=f"crawl_full_{safe_sid}.json",
             mime="application/json",
@@ -272,7 +286,7 @@ def render_results_section(pages: List[PageResult], summary: Optional[CrawlSessi
         if summary:
             summary_csv = sanitize_dataframe_for_csv(pd.DataFrame([summary.to_dict()])).to_csv(index=False).encode("utf-8")
             st.download_button(
-                label="⬇ Download Session Report (CSV)",
+                label="⬇ Export Session Summary",
                 data=summary_csv,
                 file_name=f"crawl_report_{safe_sid}.csv",
                 mime="text/csv",
@@ -283,17 +297,21 @@ def render_results_section(pages: List[PageResult], summary: Optional[CrawlSessi
 
 
 def render_failed_section(failures: List[CrawlFailure]):
-    """Render the table of failed or skipped URLs with dark glass panel and red illumination."""
+    """Render the table of failed or skipped URLs with dark glass panel and warm amber/crimson styling."""
     st.markdown("""
-        <div style="font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; color: #F43F5E; text-transform: uppercase; margin-bottom: 0.3rem;">
-            // EXCEPTION &amp; REJECTION LOG
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem;">
+            <div>
+                <div style="font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; color: #EF4444; text-transform: uppercase; margin-bottom: 0.2rem;">
+                    EXCEPTION LOG
+                </div>
+                <h3 style="margin: 0; color: #FFFFFF; font-weight: 800; font-size: 1.3rem;">Failed &amp; Excluded Requests</h3>
+            </div>
         </div>
-        <h3 style="margin-top: 0; color: #FFFFFF; font-weight: 700; font-size: 1.35rem;">Failed &amp; Excluded Requests</h3>
     """, unsafe_allow_html=True)
 
     if not failures:
         st.markdown("""
-            <div style="background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%), rgba(11, 24, 20, 0.75); border: 1px solid rgba(34, 197, 94, 0.3); border-left: 4px solid #22C55E; border-radius: var(--radius); padding: 1.1rem 1.4rem; color: #22C55E; font-weight: 600; box-shadow: 0 8px 30px rgba(0,0,0,0.4), 0 0 20px rgba(34, 197, 94, 0.12);">
+            <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-left: 4px solid #10B981; border-radius: 10px; padding: 1.1rem 1.4rem; color: #34D399; font-weight: 600;">
                 ✓ ZERO FAILURES DETECTED: All attempted network resources resolved successfully.
             </div>
         """, unsafe_allow_html=True)
@@ -303,12 +321,12 @@ def render_failed_section(failures: List[CrawlFailure]):
     df_fail = pd.DataFrame(records)
 
     st.markdown(f"""
-        <div style="background: linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%), rgba(28, 14, 24, 0.80); border: 1px solid rgba(244, 63, 94, 0.35); border-left: 4px solid #F43F5E; border-radius: var(--radius); padding: 1.1rem 1.5rem; color: #F8FAFC; box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 25px rgba(244, 63, 94, 0.16); margin-bottom: 1.2rem;">
-            <div style="font-size: 0.92rem; font-weight: 800; color: #F43F5E; letter-spacing: 0.06em; margin-bottom: 0.3rem;">
-                ⚠ FAILED REQUESTS TELEMETRY
+        <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.3); border-left: 4px solid #EF4444; border-radius: 10px; padding: 1rem 1.4rem; color: #F8FAFC; margin-bottom: 1.2rem;">
+            <div style="font-size: 0.88rem; font-weight: 800; color: #F87171; letter-spacing: 0.04em; margin-bottom: 0.25rem;">
+                ⚠ {len(failures)} FAILED OR EXCLUDED REQUESTS
             </div>
-            <div style="font-size: 0.85rem; color: #94A3B8;">
-                <b style="color: #FFFFFF;">{len(failures)} failures detected</b> across network boundaries, HTTP status codes, or exclusion guardrails.
+            <div style="font-size: 0.82rem; color: #94A3B8;">
+                Requests blocked by network timeouts, HTTP status errors, or robots.txt politeness rules.
             </div>
         </div>
     """, unsafe_allow_html=True)
@@ -330,12 +348,16 @@ def render_failed_section(failures: List[CrawlFailure]):
 
 
 def render_url_explorer(pages: List[PageResult]):
-    """Allow deep-dive inspection into an individual crawled page with glass telemetry panels."""
+    """Allow deep-dive inspection into an individual crawled page with dark glass telemetry panels."""
     st.markdown("""
-        <div style="font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; color: #22D3EE; text-transform: uppercase; margin-bottom: 0.3rem;">
-            // NODE TELEMETRY INSPECTOR
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem;">
+            <div>
+                <div style="font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; color: #F97316; text-transform: uppercase; margin-bottom: 0.2rem;">
+                    PAGE INSPECTOR
+                </div>
+                <h3 style="margin: 0; color: #FFFFFF; font-weight: 800; font-size: 1.3rem;">URL Deep-Dive Explorer</h3>
+            </div>
         </div>
-        <h3 style="margin-top: 0; color: #FFFFFF; font-weight: 700; font-size: 1.35rem;">URL Deep-Dive Explorer</h3>
     """, unsafe_allow_html=True)
 
     if not pages:
@@ -353,9 +375,8 @@ def render_url_explorer(pages: List[PageResult]):
     )
 
     page = page_map[selected_key]
-    status_class = "dot-green" if page.status_code == 200 else "dot-red"
+    status_color = "#10B981" if page.status_code == 200 else "#EF4444"
 
-    # Futuristic Inspection Panel Glass Grid with strict XSS sanitization
     safe_url = html.escape(page.url)
     safe_title = html.escape(page.title)
     safe_domain = html.escape(page.domain)
@@ -363,19 +384,19 @@ def render_url_explorer(pages: List[PageResult]):
 
     st.markdown(f"""
         <div class="kpi-grid" style="margin-bottom: 1.2rem;">
-            <div class="kpi-card kpi-card-cyan">
+            <div class="kpi-card" style="border-top: 3px solid #F97316;">
                 <div class="kpi-header">
-                    <span class="kpi-dot dot-cyan">◉</span>
+                    <span class="kpi-dot" style="background: #F97316;">◉</span>
                     <span class="kpi-label">Target URL</span>
                 </div>
-                <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; color: #22D3EE; word-break: break-all; margin-top: 0.2rem;">
+                <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; color: #FB923C; word-break: break-all; margin-top: 0.2rem;">
                     {safe_url}
                 </div>
                 <div class="kpi-subtext">Host: {safe_domain}</div>
             </div>
-            <div class="kpi-card kpi-card-violet">
+            <div class="kpi-card" style="border-top: 3px solid #A855F7;">
                 <div class="kpi-header">
-                    <span class="kpi-dot dot-violet">◉</span>
+                    <span class="kpi-dot" style="background: #A855F7;">◉</span>
                     <span class="kpi-label">Webpage Title</span>
                 </div>
                 <div style="font-size: 1.15rem; font-weight: 700; color: #FFFFFF; line-height: 1.3; margin-top: 0.2rem;">
@@ -383,12 +404,12 @@ def render_url_explorer(pages: List[PageResult]):
                 </div>
                 <div class="kpi-subtext">Type: {safe_type}</div>
             </div>
-            <div class="kpi-card kpi-card-green">
+            <div class="kpi-card" style="border-top: 3px solid {status_color};">
                 <div class="kpi-header">
-                    <span class="kpi-dot {status_class}">◉</span>
+                    <span class="kpi-dot" style="background: {status_color};">◉</span>
                     <span class="kpi-label">Status & Depth</span>
                 </div>
-                <div class="kpi-value val-green" style="font-size: 1.8rem;">
+                <div class="kpi-value" style="font-size: 1.8rem; color: {status_color};">
                     {page.status_code} <span style="font-size: 1rem; color: #94A3B8;">/ D{page.depth}</span>
                 </div>
                 <div class="kpi-subtext">Latency: {page.response_time:.3f}s</div>
@@ -410,21 +431,16 @@ def render_url_explorer(pages: List[PageResult]):
         st.markdown(f"**Discovered From (Parent URL):** `{safe_parent}`")
 
     tab_content, tab_int, tab_ext = st.tabs([
-        f"Text & Sentences ({page.match_count} matches)",
+        f"Text Content ({page.match_count} matches)",
         f"Internal Links ({page.internal_links_count})",
         f"External Links ({page.external_links_count})"
     ])
 
     with tab_content:
-        st.markdown("""
-            <div style="font-size: 0.74rem; font-weight: 700; letter-spacing: 0.06em; color: #22D3EE; text-transform: uppercase; margin-bottom: 0.4rem;">
-                // PAGE CONTENT SNIPPET &amp; TEXT EXTRACTION
-            </div>
-        """, unsafe_allow_html=True)
         if page.text_snippet:
             safe_snippet = html.escape(page.text_snippet)
             st.markdown(f"""
-                <div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; padding: 0.85rem 1.1rem; color: #E2E8F0; font-size: 0.84rem; line-height: 1.6; margin-bottom: 1rem;">
+                <div style="background: rgba(16, 20, 34, 0.7); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 1rem 1.2rem; color: #E2E8F0; font-size: 0.85rem; line-height: 1.6; margin-bottom: 1rem;">
                     &ldquo;{safe_snippet}&hellip;&rdquo;
                 </div>
             """, unsafe_allow_html=True)
@@ -433,15 +449,15 @@ def render_url_explorer(pages: List[PageResult]):
 
         if page.matching_sentences:
             st.markdown(f"""
-                <div style="font-size: 0.74rem; font-weight: 700; letter-spacing: 0.06em; color: #D8B4FE; text-transform: uppercase; margin-bottom: 0.4rem;">
-                    // MINED SENTENCES MATCHING TARGET TERMS ({len(page.matching_sentences)})
+                <div style="font-size: 0.74rem; font-weight: 700; letter-spacing: 0.06em; color: #C084FC; text-transform: uppercase; margin-bottom: 0.4rem;">
+                    MATCHING EXTRACTED PASSAGES ({len(page.matching_sentences)})
                 </div>
             """, unsafe_allow_html=True)
             for idx, sent in enumerate(page.matching_sentences, 1):
                 safe_sent = html.escape(sent)
                 st.markdown(f"""
-                    <div style="background: rgba(88, 28, 135, 0.2); border-left: 3px solid #A855F7; border-radius: 4px; padding: 0.5rem 0.8rem; margin-bottom: 0.4rem; color: #F1F5F9; font-size: 0.82rem; line-height: 1.5;">
-                        <span style="color: #D8B4FE; font-weight: 700; font-family: monospace;">[{idx}]</span> {safe_sent}
+                    <div style="background: rgba(168, 85, 247, 0.08); border-left: 3px solid #A855F7; border-radius: 6px; padding: 0.6rem 0.9rem; margin-bottom: 0.4rem; color: #F1F5F9; font-size: 0.82rem; line-height: 1.5;">
+                        <span style="color: #C084FC; font-weight: 700; font-family: monospace;">[{idx}]</span> {safe_sent}
                     </div>
                 """, unsafe_allow_html=True)
         elif page.word_count > 0:
@@ -471,13 +487,15 @@ def render_network_graph_section(pages: List[PageResult], edges: List[Dict[str, 
         return
 
     st.markdown("""
-        <div style="font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; color: #22D3EE; text-transform: uppercase; margin-bottom: 0.2rem;">
-            // TOPOLOGICAL TRAVERSAL GRAPH
-        </div>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem; flex-wrap: wrap;">
-            <h3 style="margin-top: 0; margin-bottom: 0; color: #FFFFFF; font-weight: 700; font-size: 1.25rem;">2D BFS Network Graph (Spring Force Layout)</h3>
-            <div style="font-size: 0.72rem; color: #94A3B8;">
-                Pan, zoom, or hover nodes for instant URI & depth telemetry
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem; flex-wrap: wrap; gap: 0.5rem;">
+            <div>
+                <div style="font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; color: #A855F7; text-transform: uppercase; margin-bottom: 0.2rem;">
+                    TOPOLOGY VISUALIZATION
+                </div>
+                <h3 style="margin: 0; color: #FFFFFF; font-weight: 800; font-size: 1.3rem;">2D Link Graph (Spring Force Layout)</h3>
+            </div>
+            <div style="font-size: 0.75rem; color: #94A3B8;">
+                Pan, zoom, or hover nodes for instant URI &amp; depth telemetry
             </div>
         </div>
     """, unsafe_allow_html=True)
@@ -496,10 +514,17 @@ def render_charts_section(
         return
 
     st.markdown("""
-        <div style="font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; color: #22D3EE; text-transform: uppercase; margin-bottom: 0.2rem;">
-            // TRAVERSAL & PERFORMANCE ANALYTICS
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem; flex-wrap: wrap; gap: 0.5rem;">
+            <div>
+                <div style="font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; color: #A855F7; text-transform: uppercase; margin-bottom: 0.2rem;">
+                    ANALYTICS &amp; METRICS
+                </div>
+                <h3 style="margin: 0; color: #FFFFFF; font-weight: 800; font-size: 1.3rem;">Crawl Traversal &amp; Latency Analytics</h3>
+            </div>
+            <div style="font-size: 0.75rem; color: #94A3B8;">
+                Deep performance breakdown across crawl frontier
+            </div>
         </div>
-        <h3 style="margin-top: 0; color: #FFFFFF; font-weight: 700; font-size: 1.25rem; margin-bottom: 0.8rem;">Crawl Traversal & Latency Analytics</h3>
     """, unsafe_allow_html=True)
 
     internal_links = summary.total_internal_links if summary else sum(p.internal_links_count for p in pages)
@@ -530,10 +555,17 @@ def render_charts_section(
 def render_history_section(db: CrawlDatabase):
     """Render SQLite historical crawl sessions browser with reload and delete capabilities."""
     st.markdown("""
-        <div style="font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; color: #22D3EE; text-transform: uppercase; margin-bottom: 0.3rem;">
-            // SQLITE RELATIONAL ARCHIVE
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem; flex-wrap: wrap; gap: 0.5rem;">
+            <div>
+                <div style="font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; color: #A855F7; text-transform: uppercase; margin-bottom: 0.2rem;">
+                    SESSION ARCHIVES
+                </div>
+                <h3 style="margin: 0; color: #FFFFFF; font-weight: 800; font-size: 1.3rem;">Historical Crawl Sessions</h3>
+            </div>
+            <div style="font-size: 0.75rem; color: #94A3B8;">
+                Relational SQLite persistent storage
+            </div>
         </div>
-        <h3 style="margin-top: 0; color: #FFFFFF; font-weight: 700; font-size: 1.35rem;">Historical Crawl Sessions</h3>
     """, unsafe_allow_html=True)
 
     sessions = db.get_all_sessions()
@@ -547,6 +579,16 @@ def render_history_section(db: CrawlDatabase):
             "session_id", "start_url", "max_depth", "pages_crawled",
             "discovered_urls_count", "failed_urls_count", "elapsed_seconds", "start_time"
         ]],
+        column_config={
+            "session_id": st.column_config.TextColumn("Session ID", width="small"),
+            "start_url": st.column_config.LinkColumn("Start Seed URL", width="large"),
+            "max_depth": st.column_config.NumberColumn("Depth", format="D%d", width="small"),
+            "pages_crawled": st.column_config.NumberColumn("Pages", width="small"),
+            "discovered_urls_count": st.column_config.NumberColumn("Discovered", width="small"),
+            "failed_urls_count": st.column_config.NumberColumn("Failures", width="small"),
+            "elapsed_seconds": st.column_config.NumberColumn("Duration (s)", format="%.1fs", width="small"),
+            "start_time": st.column_config.TextColumn("Timestamp", width="medium"),
+        },
         use_container_width=True,
         hide_index=True,
     )
@@ -615,7 +657,6 @@ def render_history_section(db: CrawlDatabase):
             max_depth_reached=target["max_depth_reached"],
         )
 
-        # Reconstruct graph topology from parent relationships AND discovered internal inter-links
         crawled_url_set = {p.url for p in loaded_pages}
         loaded_edges = []
         seen_edges = set()
@@ -631,7 +672,6 @@ def render_history_section(db: CrawlDatabase):
                     seen_edges.add((p.url, tgt))
                     loaded_edges.append((p.url, tgt, p.depth + 1))
 
-        # Reconstruct discovered URLs list
         discovered_set = set()
         for p in loaded_pages:
             discovered_set.add(p.url)
@@ -652,7 +692,8 @@ def render_history_section(db: CrawlDatabase):
     c_load, c_del = st.columns([1, 1])
     with c_load:
         st.button(
-            "Load Session Into Dashboard",
+            "Load Session Into Active Workspaces",
+            type="primary",
             use_container_width=True,
             on_click=_load_session_callback,
             args=(db, selected_session_id, sessions),
@@ -662,7 +703,7 @@ def render_history_section(db: CrawlDatabase):
         st.success(f"Session `{st.session_state.pop('history_loaded_notification')}` loaded into active dashboard.")
 
     with c_del:
-        if st.button("Delete Session from Database", type="secondary", use_container_width=True):
+        if st.button("Delete Session from Archive", type="secondary", use_container_width=True):
             db.delete_session(selected_session_id)
             st.success(f"Session `{selected_session_id}` deleted.")
             st.rerun()

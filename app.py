@@ -17,6 +17,8 @@ from ui.components import (
     apply_custom_styles,
     render_header,
     render_platform_header,
+    render_app_topbar,
+    render_workspace_hero,
     render_kpi_cards,
     render_completion_banner,
     render_empty_state,
@@ -197,130 +199,189 @@ def render_deep_crawler_mode():
     raw_deck_input = st.session_state.get("input_target_url", "").strip()
     is_search_mode = is_search_query(raw_deck_input) if raw_deck_input else False
     mode_badge_html = (
-        '<span style="background: rgba(168, 85, 247, 0.2); border: 1px solid #A855F7; color: #D8B4FE; padding: 0.2rem 0.55rem; border-radius: 4px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em;">🌐 INTERNET SEARCH &amp; MINING</span>'
+        '<span style="background: rgba(168, 85, 247, 0.15); border: 1px solid #A855F7; color: #D8B4FE; padding: 0.2rem 0.55rem; border-radius: 6px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em;">🌐 INTERNET SEARCH &amp; MINING</span>'
         if is_search_mode
-        else '<span style="background: rgba(6, 182, 212, 0.15); border: 1px solid #06B6D4; color: #22D3EE; padding: 0.2rem 0.55rem; border-radius: 4px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em;">🎯 DIRECT TARGET SEED URL</span>'
+        else '<span style="background: rgba(249, 115, 22, 0.15); border: 1px solid #F97316; color: #FB923C; padding: 0.2rem 0.55rem; border-radius: 6px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em;">🎯 DIRECT TARGET SEED URL</span>'
     )
 
-    st.markdown(f"""
-        <div class="crawl-command-bar">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.55rem; flex-wrap: wrap; gap: 0.5rem;">
-                <div style="font-size: 0.78rem; font-weight: 800; letter-spacing: 0.08em; color: #FFFFFF; display: flex; align-items: center; gap: 0.45rem;">
-                    ⚡ GLOBAL CRAWL COMMAND DECK
-                </div>
-                <div style="font-size: 0.68rem; color: #22D3EE; font-family: 'JetBrains Mono', monospace; letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.6rem;">
-                    {mode_badge_html}
-                    <span style="color: #94A3B8;">BFS TRAVERSAL // PROTOCOL READY</span>
-                </div>
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
+    col_deck_left, col_deck_right = st.columns([5.5, 4.5])
 
-    if is_search_mode:
-        col_tip, col_sw = st.columns([5.5, 2.5])
-        with col_tip:
+    with col_deck_left:
+        st.markdown(f"""
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem; flex-wrap: wrap; gap: 0.5rem;">
+                <div style="font-size: 0.76rem; font-weight: 800; letter-spacing: 0.08em; color: #F97316; text-transform: uppercase;">
+                    ⚡ CRAWLER CONFIGURATION
+                </div>
+                <div>{mode_badge_html}</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+        if is_search_mode:
             st.markdown(f"""
-                <div style="font-size: 0.74rem; color: #D8B4FE; padding: 0.2rem 0;">
+                <div style="font-size: 0.74rem; color: #D8B4FE; padding: 0.3rem 0; margin-bottom: 0.4rem;">
                     💡 <b>Research Query Detected:</b> Want verified evidence and a direct answer for <i>"{html.escape(raw_deck_input[:40])}..."</i>?
                 </div>
             """, unsafe_allow_html=True)
-        with col_sw:
             st.button(
-                "🔎 Switch to Web Search & Answers",
+                "🔎 Switch to Search & Research Canvas",
                 key="btn_switch_search_mode",
                 use_container_width=True,
                 on_click=switch_to_search_callback,
                 args=(raw_deck_input,),
             )
 
-    # Real-time kinetic typing animator for crawler command deck input
-    render_real_input_cyber_animator()
+        # Real-time kinetic typing animator for crawler command deck input
+        render_real_input_cyber_animator()
 
-    col_pre, col_url, col_btn, col_clr = st.columns([1.8, 4.5, 1.6, 1.1])
+        def on_crawl_input_submit():
+            st.session_state["trigger_auto_crawl"] = True
 
-    with col_pre:
-        preset_names = ["⚡ Presets: Select Target..."] + list(PRESETS.keys())
-        st.selectbox(
-            "Quick Target Presets",
-            preset_names,
-            key="console_preset_select",
-            on_change=on_preset_change,
-            label_visibility="collapsed",
-        )
-
-    def on_crawl_input_submit():
-        st.session_state["trigger_auto_crawl"] = True
-
-    with col_url:
         start_url_input = st.text_input(
             "Target Seed URL or Words / Sentences",
-            placeholder="Enter website URL (https://...) or words / sentence to crawl across internet...",
+            placeholder="Enter website URL (https://...) or topic to crawl...",
             key="input_target_url",
             label_visibility="collapsed",
             on_change=on_crawl_input_submit,
         )
 
-    with col_btn:
-        btn_start = st.button("⚡ Start Crawl", type="primary", use_container_width=True)
-
-    with col_clr:
-        btn_clear = st.button("🧹 Clear", type="secondary", use_container_width=True, on_click=reset_crawl_state_callback)
-
-    with st.expander("⚙️ Traversal Parameters & Politeness Policies", expanded=False):
-        col_d, col_p, col_t, col_w = st.columns(4)
-        with col_d:
-            max_depth = st.number_input(
-                "Max Traversal Depth",
-                min_value=0,
-                step=1,
-                key="input_max_depth",
+        col_preset, col_btn_go, col_btn_clr = st.columns([2.5, 1.5, 1])
+        with col_preset:
+            preset_names = ["⚡ Presets: Select Target..."] + list(PRESETS.keys())
+            st.selectbox(
+                "Quick Target Presets",
+                preset_names,
+                key="console_preset_select",
+                on_change=on_preset_change,
+                label_visibility="collapsed",
             )
-        with col_p:
-            max_pages = st.number_input(
-                "Max Pages Safety Cap",
-                min_value=1,
-                step=5,
-                key="input_max_pages",
-            )
-        with col_t:
-            timeout_val = st.number_input(
-                "HTTP Timeout (seconds)",
-                min_value=1.0,
-                max_value=60.0,
-                value=10.0,
-                step=1.0,
-                key="input_timeout",
-            )
-        with col_w:
-            delay_val = st.number_input(
-                "Politeness Delay (seconds)",
-                min_value=0.0,
-                max_value=5.0,
-                value=0.2,
-                step=0.1,
-                key="input_delay",
+        with col_btn_go:
+            btn_start = st.button("▶ Start Crawl", type="primary", use_container_width=True)
+        with col_btn_clr:
+            btn_clear = st.button("🧹 Clear", type="secondary", use_container_width=True, on_click=reset_crawl_state_callback)
+
+        with st.expander("⚙️ Traversal Parameters & Politeness Policies", expanded=False):
+            col_d, col_p = st.columns(2)
+            with col_d:
+                max_depth = st.number_input(
+                    "Max Traversal Depth",
+                    min_value=0,
+                    step=1,
+                    key="input_max_depth",
+                )
+            with col_p:
+                max_pages = st.number_input(
+                    "Max Pages Safety Cap",
+                    min_value=1,
+                    step=5,
+                    key="input_max_pages",
+                )
+
+            col_t, col_w = st.columns(2)
+            with col_t:
+                timeout_val = st.number_input(
+                    "HTTP Timeout (seconds)",
+                    min_value=1.0,
+                    max_value=60.0,
+                    value=10.0,
+                    step=1.0,
+                    key="input_timeout",
+                )
+            with col_w:
+                delay_val = st.number_input(
+                    "Politeness Delay (seconds)",
+                    min_value=0.0,
+                    max_value=5.0,
+                    value=0.2,
+                    step=0.1,
+                    key="input_delay",
+                )
+
+            keyword_filter_val = st.text_input(
+                "Target Word / Sentence Match Filter (Optional)",
+                placeholder="Highlight & extract specific sentences containing these words...",
+                key="input_keyword_filter",
+                help="Optional words or phrases to mine and extract from crawled web pages.",
             )
 
-        keyword_filter_val = st.text_input(
-            "Target Word / Sentence Match Filter (Optional)",
-            placeholder="Highlight & extract specific sentences containing these words across crawled pages...",
-            key="input_keyword_filter",
-            help="Optional words or phrases to mine and extract from crawled web pages.",
-        )
+            col_c1, col_c2 = st.columns(2)
+            with col_c1:
+                stay_on_domain = st.checkbox("Stay on Base Domain", value=True, key="chk_stay_domain")
+                respect_robots = st.checkbox("Respect robots.txt", value=True, key="chk_robots")
+            with col_c2:
+                enable_sqlite = st.checkbox("Persist Session in SQLite", value=True, key="chk_sqlite")
+                render_js = st.checkbox("⚡ Render JavaScript (SPAs)", value=False, key="chk_render_js", help="Use headless Chromium browser to execute client-side JavaScript for modern SPAs.")
+                if render_js:
+                    from crawler.browser_fetcher import PlaywrightBrowserManager
+                    if not PlaywrightBrowserManager.is_available():
+                        st.warning("⚠️ Headless browser engine not detected. Crawl will fall back to HTTP.")
 
-        col_c1, col_c2, col_c3, col_c4 = st.columns(4)
-        with col_c1:
-            stay_on_domain = st.checkbox("Stay on Base Domain", value=True, key="chk_stay_domain")
-        with col_c2:
-            respect_robots = st.checkbox("Respect robots.txt", value=True, key="chk_robots")
-        with col_c3:
-            enable_sqlite = st.checkbox("Persist Session in SQLite", value=True, key="chk_sqlite")
-        with col_c4:
-            render_js = st.checkbox("⚡ Render JavaScript (SPAs / Hotstar)", value=False, key="chk_render_js", help="Use headless Chromium browser to execute client-side JavaScript for modern React/Vue SPAs like Hotstar or Netflix.")
-            if render_js:
-                from crawler.browser_fetcher import PlaywrightBrowserManager
-                if not PlaywrightBrowserManager.is_available():
-                    st.warning("⚠️ Headless browser engine not detected. Crawl will fall back to HTTP.")
+    # Retrieve active session state
+    summary: CrawlSessionSummary = st.session_state.get("crawl_summary")
+    pages = st.session_state.get("page_results", [])
+    failures = st.session_state.get("failures", [])
+    edges = st.session_state.get("graph_edges", [])
+
+    # Right column status / monitor
+    with col_deck_right:
+        if st.session_state.get("is_crawling"):
+            # Live crawl placeholder handled in execution block below
+            pass
+        elif summary is not None:
+            st.markdown(f"""
+                <div class="kpi-card" style="padding: 1.1rem 1.3rem; border-top: 3px solid #10B981; margin-bottom: 0.6rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem;">
+                        <div style="font-size: 0.72rem; font-weight: 700; color: #10B981; text-transform: uppercase;">
+                            ● CRAWL SESSION READY
+                        </div>
+                        <div style="font-size: 0.70rem; color: #94A3B8; font-family: 'JetBrains Mono', monospace;">
+                            ID: {summary.session_id}
+                        </div>
+                    </div>
+                    <div style="font-size: 1.25rem; font-weight: 800; color: #FFFFFF; margin-bottom: 0.4rem;">
+                        {summary.pages_crawled} Pages Crawled
+                    </div>
+                    <div style="font-size: 0.80rem; color: #94A3B8; line-height: 1.5; margin-bottom: 0.8rem;">
+                        Traversal explored depth frontier <b>D{summary.max_depth_reached}</b> across <b>{summary.elapsed_seconds:.1f}s</b>.
+                        Found {summary.discovered_urls_count} total links and {summary.failed_urls_count} failures.
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+            col_sw1, col_sw2 = st.columns(2)
+            with col_sw1:
+                st.button(
+                    "📁 Open Results ➔",
+                    key="btn_deck_open_results",
+                    use_container_width=True,
+                    on_click=navigate_to_workspace_callback,
+                    args=("📁 Results & Evidence",),
+                )
+            with col_sw2:
+                st.button(
+                    "📊 Open Analytics ➔",
+                    key="btn_deck_open_analytics",
+                    use_container_width=True,
+                    on_click=navigate_to_workspace_callback,
+                    args=("📊 Visual Analytics",),
+                )
+        else:
+            st.markdown("""
+                <div class="kpi-card" style="padding: 1.1rem 1.3rem; border-top: 3px solid #F97316; min-height: 160px; display: flex; flex-direction: column; justify-content: space-between;">
+                    <div>
+                        <div style="font-size: 0.72rem; font-weight: 700; color: #FB923C; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.4rem;">
+                            ENGINE STANDBY // READY FOR TRAVERSAL
+                        </div>
+                        <div style="font-size: 1.1rem; font-weight: 800; color: #FFFFFF; margin-bottom: 0.3rem;">
+                            Autonomous BFS Web Crawler
+                        </div>
+                        <div style="font-size: 0.80rem; color: #94A3B8; line-height: 1.5;">
+                            Configure seed URL and limits on the left, or select a rapid preset. The engine executes Breadth-First Search, respects robots.txt, and indexes link topology in real time.
+                        </div>
+                    </div>
+                    <div style="font-size: 0.70rem; color: #64748B; font-family: 'JetBrains Mono', monospace; margin-top: 0.6rem;">
+                        POLITENESS: ENABLED &bull; CIRCULAR LOOP GUARD: ACTIVE
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
 
     # Live Crawl Execution
     should_crawl = btn_start or st.session_state.pop("trigger_auto_crawl", False)
@@ -390,11 +451,11 @@ def render_deep_crawler_mode():
                         recent_logs.pop(0)
 
                     terminal_placeholder.markdown(f"""
-                        <div class="live-stream-box" style="margin-top: 0.5rem; margin-bottom: 0.5rem; padding: 0.6rem 0.8rem;">
-                            <div class="stream-title" style="margin-bottom: 0.3rem;">
-                                <span class="stream-beacon"></span> LIVE BFS PACKET STREAM
+                        <div style="background: rgba(16, 20, 34, 0.8); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; margin-top: 0.6rem; margin-bottom: 0.6rem; padding: 0.8rem 1rem;">
+                            <div style="font-size: 0.70rem; font-weight: 800; color: #F97316; letter-spacing: 0.06em; margin-bottom: 0.3rem;">
+                                LIVE BFS PACKET STREAM
                             </div>
-                            <div style="font-size: 0.76rem; color: #94A3B8; font-family: 'JetBrains Mono', monospace;">
+                            <div style="font-size: 0.76rem; color: #94A3B8; font-family: 'JetBrains Mono', monospace; line-height: 1.5;">
                                 {"<br>".join([html.escape(l) for l in recent_logs])}
                             </div>
                         </div>
@@ -442,136 +503,46 @@ def render_deep_crawler_mode():
 
         st.rerun()
 
-    # Retrieve active session state
-    summary: CrawlSessionSummary = st.session_state.get("crawl_summary")
-    pages = st.session_state.get("page_results", [])
-    failures = st.session_state.get("failures", [])
-    edges = st.session_state.get("graph_edges", [])
+    st.markdown("<div style='margin-top: 1.2rem;'></div>", unsafe_allow_html=True)
 
-    tab_mission, tab_results, tab_graph, tab_charts, tab_explorer, tab_failed, tab_history = st.tabs([
-        "⚡ Mission",
-        "📋 Results",
-        "🕸️ Network",
-        "📈 Analytics",
-        "🔍 URL Dive",
-        "⚠️ Failures",
-        "📜 History",
+    tab_results, tab_explorer, tab_graph, tab_charts, tab_failed, tab_history = st.tabs([
+        "📋 Crawled Pages",
+        "🔍 URL Inspector",
+        "🕸️ Link Topology Graph",
+        "📈 Traversal Analytics",
+        "⚠️ Failures & Exclusions",
+        "📜 Session Archive",
     ])
-
-    with tab_mission:
-        if summary is not None:
-            st.markdown(f"""
-                <div class="results-ready-bar">
-                    <div style="font-size: 0.84rem;">
-                        <b style="color: #22C55E;">✓ CRAWL SESSION READY:</b>
-                        <span style="color: #F8FAFC; margin-left: 0.35rem;">{summary.pages_crawled} pages analyzed across depth frontier {summary.max_depth_reached}.</span>
-                    </div>
-                    <div style="color: #94A3B8; font-size: 0.76rem;">
-                        Detailed insights available across workspaces: <b>📁 Results &amp; Evidence</b> &bull; <b>📊 Visual Analytics</b>
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-            render_completion_banner(summary)
-            render_kpi_cards(summary, pages=pages)
-
-            st.markdown("<div style='margin-top: 1.1rem;'></div>", unsafe_allow_html=True)
-            col_nav1, col_nav2 = st.columns(2)
-            with col_nav1:
-                st.button(
-                    "📁 Open Results & Evidence Explorer ➔",
-                    key="btn_open_results_ws",
-                    use_container_width=True,
-                    on_click=navigate_to_workspace_callback,
-                    args=("📁 Results & Evidence",),
-                )
-            with col_nav2:
-                st.button(
-                    "📊 Open Visual Analytics Dashboard ➔",
-                    key="btn_open_analytics_ws",
-                    use_container_width=True,
-                    on_click=navigate_to_workspace_callback,
-                    args=("📊 Visual Analytics",),
-                )
-        else:
-            st.markdown("""
-                <div class="standby-panel-glass">
-                    <div style="font-size: 0.72rem; font-weight: 700; color: #22D3EE; letter-spacing: 0.09em; text-transform: uppercase; margin-bottom: 0.3rem; display: flex; align-items: center; gap: 0.45rem;">
-                        <span class="pulse-beacon-cyan"></span> SYSTEM READY // STANDBY MODE
-                    </div>
-                    <h3 style="color: #FFFFFF; font-size: 1.35rem; font-weight: 800; margin-top: 0; margin-bottom: 0.4rem;">
-                        Autonomous Web Crawler &amp; Topology Engine
-                    </h3>
-                    <p style="color: #94A3B8; font-size: 0.88rem; line-height: 1.55; margin-bottom: 0;">
-                        Configure seed URL and traversal limits in the command deck above, or click a rapid preset below.
-                        The engine executes Breadth-First Search traversal, prevents circular loops, parses hyperlinks, and renders real-time interactive telemetry.
-                    </p>
-                </div>
-            """, unsafe_allow_html=True)
-
-            preset_items = list(PRESETS.items())
-            row_size = 3
-            global_card_idx = 0
-            for r_start in range(0, len(preset_items), row_size):
-                chunk = preset_items[r_start : r_start + row_size]
-                p_cols = st.columns(len(chunk))
-                for c_idx, (p_title, p_spec) in enumerate(chunk):
-                    with p_cols[c_idx]:
-                        safe_preset_title = html.escape(p_title)
-                        safe_preset_url = html.escape(p_spec['url'])
-                        safe_preset_desc = html.escape(p_spec['desc'])
-                        st.markdown(f"""
-                            <div class="kpi-card preset-card" style="padding: 0.85rem 1rem; min-height: 130px; display: flex; flex-direction: column; justify-content: space-between; margin-bottom: 0.4rem;">
-                                <div>
-                                    <div style="font-size: 0.82rem; font-weight: 800; color: #FFFFFF; margin-bottom: 0.2rem;">
-                                        {safe_preset_title}
-                                    </div>
-                                    <div style="font-size: 0.70rem; color: #22D3EE; font-family: 'JetBrains Mono', monospace; word-break: break-all; margin-bottom: 0.3rem;">
-                                        {safe_preset_url}
-                                    </div>
-                                    <div style="font-size: 0.72rem; color: #94A3B8; line-height: 1.35;">
-                                        {safe_preset_desc}
-                                    </div>
-                                </div>
-                            </div>
-                        """, unsafe_allow_html=True)
-                        st.button(
-                            f"⚡ Load {p_title.split(':')[0]}",
-                            key=f"btn_preset_card_{global_card_idx}",
-                            use_container_width=True,
-                            on_click=load_preset_card_callback,
-                            args=(p_title,),
-                        )
-                        global_card_idx += 1
 
     with tab_results:
         if pages:
             render_results_section(pages, summary=summary)
         else:
-            st.info("No crawled pages recorded yet. Start a crawl session above to populate the data grid.")
-
-    with tab_graph:
-        if pages and edges:
-            render_network_graph_section(pages, edges)
-        else:
-            st.info("Network topology graph will appear once a crawl session with link connections completes.")
-
-    with tab_charts:
-        if pages:
-            render_charts_section(pages, failures=failures, summary=summary, edges=edges)
-        else:
-            st.info("Traversal distribution metrics will render once pages are crawled.")
+            render_empty_state("📋", "No Crawled Pages Yet", "Launch a crawl session above to populate the interactive data grid.")
 
     with tab_explorer:
         if pages:
             render_url_explorer(pages)
         else:
-            st.info("No crawled pages available to inspect. Launch a crawl session first.")
+            render_empty_state("🔍", "No Page Selected", "Inspect page content snippets, headers, and outbound links once crawled.")
+
+    with tab_graph:
+        if pages and edges:
+            render_network_graph_section(pages, edges)
+        else:
+            render_empty_state("🕸️", "Network Topology Standby", "The 2D physics-directed link graph renders node hierarchies once a crawl completes.")
+
+    with tab_charts:
+        if pages:
+            render_charts_section(pages, failures=failures, summary=summary, edges=edges)
+        else:
+            render_empty_state("📈", "Analytics Standby", "Traversal depth, link distribution, and HTTP status donuts will display after crawling.")
 
     with tab_failed:
         if summary is not None:
             render_failed_section(failures)
         else:
-            st.info("No active crawl session. Run a crawl to view network exceptions or policy exclusions.")
+            render_empty_state("⚠️", "No Failures Logged", "Network timeouts and policy exclusions will be reported here.")
 
     with tab_history:
         render_history_section(db)
@@ -579,6 +550,33 @@ def render_deep_crawler_mode():
 
 def render_results_and_evidence_workspace(pages, summary, failures):
     """Render unified Results & Evidence Explorer workspace."""
+    total_pages = len(pages)
+    unique_domains = len({p.domain for p in pages if p.domain})
+    total_failures = len(failures) if failures else 0
+    active_search = st.session_state.get("active_search_result")
+    evidence_count = len(active_search.extracted_evidence) if active_search and active_search.extracted_evidence else 0
+
+    st.markdown(f"""
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.8rem; margin-bottom: 1.2rem;">
+            <div class="kpi-card" style="padding: 0.9rem 1.1rem; border-top: 3px solid #F97316;">
+                <div style="font-size: 0.70rem; font-weight: 700; color: #94A3B8; text-transform: uppercase;">Total Crawled Pages</div>
+                <div style="font-size: 1.35rem; font-weight: 800; color: #FB923C;">{total_pages:,}</div>
+            </div>
+            <div class="kpi-card" style="padding: 0.9rem 1.1rem; border-top: 3px solid #A855F7;">
+                <div style="font-size: 0.70rem; font-weight: 700; color: #94A3B8; text-transform: uppercase;">Unique Domains</div>
+                <div style="font-size: 1.35rem; font-weight: 800; color: #C084FC;">{unique_domains:,}</div>
+            </div>
+            <div class="kpi-card" style="padding: 0.9rem 1.1rem; border-top: 3px solid #10B981;">
+                <div style="font-size: 0.70rem; font-weight: 700; color: #94A3B8; text-transform: uppercase;">Search Evidence Blocks</div>
+                <div style="font-size: 1.35rem; font-weight: 800; color: #34D399;">{evidence_count}</div>
+            </div>
+            <div class="kpi-card" style="padding: 0.9rem 1.1rem; border-top: 3px solid #EF4444;">
+                <div style="font-size: 0.70rem; font-weight: 700; color: #94A3B8; text-transform: uppercase;">Failed Requests</div>
+                <div style="font-size: 1.35rem; font-weight: 800; color: #F87171;">{total_failures}</div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
     tab_pages, tab_explorer, tab_evidence, tab_failures = st.tabs([
         "📋 Crawled Pages Table",
         "🔍 URL Deep-Dive Inspector",
@@ -604,7 +602,6 @@ def render_results_and_evidence_workspace(pages, summary, failures):
                 "Crawled page headers, status codes, and outbound links will appear here once a crawl session completes."
             )
     with tab_evidence:
-        active_search = st.session_state.get("active_search_result")
         if active_search:
             render_source_inspector(active_search)
         else:
@@ -625,11 +622,109 @@ def render_results_and_evidence_workspace(pages, summary, failures):
 
 
 def render_visual_analytics_workspace(pages, edges, failures, summary):
-    """Render dedicated Visual Analytics workspace."""
-    tab_graph, tab_charts = st.tabs([
+    """Render dedicated Visual Analytics workspace with high-impact charts & key insights."""
+    total_pages = len(pages)
+    unique_domains = len({p.domain for p in pages if p.domain})
+    avg_latency = (sum(p.response_time for p in pages) / max(1, total_pages)) if pages else 0.0
+    success_rate = ((total_pages / max(1, total_pages + (len(failures) if failures else 0))) * 100) if pages else 100.0
+
+    st.markdown(f"""
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.8rem; margin-bottom: 1.2rem;">
+            <div class="kpi-card" style="padding: 0.9rem 1.1rem; border-top: 3px solid #A855F7;">
+                <div style="font-size: 0.70rem; font-weight: 700; color: #94A3B8; text-transform: uppercase;">Indexed Pages</div>
+                <div style="font-size: 1.35rem; font-weight: 800; color: #C084FC;">{total_pages:,}</div>
+            </div>
+            <div class="kpi-card" style="padding: 0.9rem 1.1rem; border-top: 3px solid #F97316;">
+                <div style="font-size: 0.70rem; font-weight: 700; color: #94A3B8; text-transform: uppercase;">Unique Domains</div>
+                <div style="font-size: 1.35rem; font-weight: 800; color: #FB923C;">{unique_domains:,}</div>
+            </div>
+            <div class="kpi-card" style="padding: 0.9rem 1.1rem; border-top: 3px solid #10B981;">
+                <div style="font-size: 0.70rem; font-weight: 700; color: #94A3B8; text-transform: uppercase;">Traversal Success</div>
+                <div style="font-size: 1.35rem; font-weight: 800; color: #34D399;">{success_rate:.1f}%</div>
+            </div>
+            <div class="kpi-card" style="padding: 0.9rem 1.1rem; border-top: 3px solid #8B5CF6;">
+                <div style="font-size: 0.70rem; font-weight: 700; color: #94A3B8; text-transform: uppercase;">Avg Latency</div>
+                <div style="font-size: 1.35rem; font-weight: 800; color: #E9D5FF;">{avg_latency * 1000:.0f} ms</div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+    tab_charts, tab_graph = st.tabs([
+        "📈 Traversal Distribution & Performance",
         "🕸️ Interactive Network Topology Graph",
-        "📈 Traversal Distribution & Metrics",
     ])
+    with tab_charts:
+        if pages:
+            render_charts_section(pages, failures=failures, summary=summary, edges=edges)
+
+            # Key Insights Cards (Inspired by Reference Design)
+            domain_counts = {}
+            for p in pages:
+                if p.domain:
+                    domain_counts[p.domain] = domain_counts.get(p.domain, 0) + 1
+            top_dom = max(domain_counts.items(), key=lambda x: x[1])[0] if domain_counts else "None"
+            max_depth = max((p.depth for p in pages), default=0)
+            fastest_page = min(pages, key=lambda p: p.response_time) if pages else None
+
+            st.markdown("""
+                <div style="margin-top: 1.5rem; margin-bottom: 0.8rem;">
+                    <div style="font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; color: #A855F7; text-transform: uppercase; margin-bottom: 0.2rem;">
+                        AUTOMATED INTELLIGENCE
+                    </div>
+                    <h3 style="margin: 0; color: #FFFFFF; font-weight: 800; font-size: 1.25rem;">Key Crawl Insights</h3>
+                </div>
+            """, unsafe_allow_html=True)
+
+            col_i1, col_i2, col_i3 = st.columns(3)
+            with col_i1:
+                st.markdown(f"""
+                    <div class="kpi-card" style="padding: 1rem 1.2rem; border-top: 3px solid #F97316;">
+                        <div style="font-size: 0.70rem; font-weight: 700; color: #94A3B8; text-transform: uppercase; margin-bottom: 0.2rem;">
+                            Top Indexed Domain
+                        </div>
+                        <div style="font-size: 1.1rem; font-weight: 800; color: #FFFFFF; word-break: break-all;">
+                            {top_dom}
+                        </div>
+                        <div style="font-size: 0.72rem; color: #FB923C; margin-top: 0.3rem;">
+                            {domain_counts.get(top_dom, 0)} pages crawled
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+            with col_i2:
+                st.markdown(f"""
+                    <div class="kpi-card" style="padding: 1rem 1.2rem; border-top: 3px solid #A855F7;">
+                        <div style="font-size: 0.70rem; font-weight: 700; color: #94A3B8; text-transform: uppercase; margin-bottom: 0.2rem;">
+                            Maximum Traversal Depth
+                        </div>
+                        <div style="font-size: 1.1rem; font-weight: 800; color: #FFFFFF;">
+                            Depth {max_depth}
+                        </div>
+                        <div style="font-size: 0.72rem; color: #C084FC; margin-top: 0.3rem;">
+                            Frontier reached successfully
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+            with col_i3:
+                fastest_ms = f"{fastest_page.response_time * 1000:.0f} ms" if fastest_page else "N/A"
+                st.markdown(f"""
+                    <div class="kpi-card" style="padding: 1rem 1.2rem; border-top: 3px solid #10B981;">
+                        <div style="font-size: 0.70rem; font-weight: 700; color: #94A3B8; text-transform: uppercase; margin-bottom: 0.2rem;">
+                            Fastest Response Time
+                        </div>
+                        <div style="font-size: 1.1rem; font-weight: 800; color: #34D399;">
+                            {fastest_ms}
+                        </div>
+                        <div style="font-size: 0.72rem; color: #94A3B8; margin-top: 0.3rem;">
+                            Lowest HTTP latency recorded
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+        else:
+            render_empty_state(
+                "📈",
+                "Visual Analytics Telemetry Standby",
+                "Plotly interactive charts (status breakdown donut, crawl depth distribution, top domains, and fetch latencies) will render once pages are crawled."
+            )
     with tab_graph:
         if pages and edges:
             render_network_graph_section(pages, edges)
@@ -638,15 +733,6 @@ def render_visual_analytics_workspace(pages, edges, failures, summary):
                 "🕸️",
                 "Network Topology Graph Standby",
                 "The 2D physics-directed link graph renders node hierarchies and inter-page connections once a crawl session with hyperlinks completes."
-            )
-    with tab_charts:
-        if pages:
-            render_charts_section(pages, failures=failures, summary=summary, edges=edges)
-        else:
-            render_empty_state(
-                "📈",
-                "Visual Analytics Telemetry Standby",
-                "Plotly interactive charts (status breakdown donut, crawl depth distribution, top domains, and fetch latencies) will render once pages are crawled."
             )
 
 
@@ -660,7 +746,6 @@ def render_research_history_workspace(db: CrawlDatabase):
         render_search_history_view(db)
     with tab_crawl_hist:
         render_history_section(db)
-
 
 # --- Persistent Sidebar Navigation ---
 WORKSPACES = [
@@ -685,11 +770,11 @@ if "app_operational_mode" in st.session_state:
 
 with st.sidebar:
     st.markdown("""
-        <div class="sidebar-brand">
-            <div class="sidebar-logo-mark">⚡</div>
-            <div class="sidebar-brand-text">
-                <div class="sidebar-title">NEXUS CRAWLER</div>
-                <div class="sidebar-subtitle">AI RESEARCH PLATFORM</div>
+        <div class="sidebar-brand-box">
+            <div class="brand-glyph-box">⚡</div>
+            <div>
+                <div class="brand-title-text">NEXUS CRAWLER</div>
+                <div class="brand-sub-text">AI RESEARCH PLATFORM</div>
             </div>
         </div>
     """, unsafe_allow_html=True)
@@ -712,25 +797,35 @@ with st.sidebar:
     st.session_state["active_workspace"] = selected_workspace
 
     st.markdown("""
-        <div class="sidebar-footer">
-            <div class="sidebar-telemetry-row">
-                <span class="telemetry-label">Status:</span>
-                <span class="telemetry-value"><span class="telemetry-dot"></span>Online</span>
+        <div class="sidebar-system-card">
+            <div class="sys-online-row">
+                <span class="status-dot green-pulse"></span>
+                <span class="sys-online-title">System Online</span>
             </div>
-            <div class="sidebar-telemetry-row">
-                <span class="telemetry-label">Engine:</span>
-                <span class="telemetry-value">BFS + Neural</span>
+            <div class="sys-status-item">
+                <span>Search Engine</span>
+                <span class="sys-status-badge">Ready</span>
             </div>
-            <div class="sidebar-telemetry-row">
-                <span class="telemetry-label">Database:</span>
-                <span class="telemetry-value">SQLite ACID</span>
+            <div class="sys-status-item">
+                <span>Crawler Engine</span>
+                <span class="sys-status-badge">Ready</span>
             </div>
-            <div class="sidebar-telemetry-row">
-                <span class="telemetry-label">Release:</span>
-                <span class="telemetry-value">v2.5 Pro</span>
+            <div class="sys-status-item">
+                <span>AI Models</span>
+                <span class="sys-status-badge">Ready</span>
+            </div>
+            <div class="sys-status-item">
+                <span>Database</span>
+                <span class="sys-status-badge">Connected</span>
             </div>
         </div>
+        <div class="sidebar-release-meta">
+            NEXUS v2.5 PRO<br>Evidence for a smarter world.
+        </div>
     """, unsafe_allow_html=True)
+
+# Render Application Top Bar (Global Command Prompt & Engine Indicator)
+render_app_topbar()
 
 # Retrieve active crawl state for workspace routing
 pages = st.session_state.get("page_results", [])
@@ -740,43 +835,61 @@ edges = st.session_state.get("graph_edges", [])
 
 # Workspace Routing
 if selected_workspace == "🔎 Search & Research":
-    render_platform_header(
-        title="SEARCH & INTELLIGENCE CANVAS",
-        subtitle="Evidence-Backed Multi-Engine Retrieval & AI Neural Synthesis"
+    render_workspace_hero(
+        eyebrow="SEARCH & RESEARCH",
+        title_part1="Ask. Discover.",
+        title_accent="Get Evidence.",
+        subtitle="Search the live web, verify information from multiple sources, and get an AI-powered, evidence-backed answer.",
+        accent_type="purple",
     )
     render_search_view(search_pipeline, db)
 
 elif selected_workspace == "🕸️ Deep Web Crawler":
-    render_platform_header(
-        title="DEEP WEB TRAVERSAL ENGINE",
-        subtitle="Autonomous Breadth-First Search & Graph Crawler"
+    render_workspace_hero(
+        eyebrow="DEEP WEB CRAWLER",
+        title_part1="Explore",
+        title_accent="the Web Deeper",
+        subtitle="Crawl websites, extract structured data, and discover deeper relationships.",
+        accent_type="orange",
     )
     render_deep_crawler_mode()
 
 elif selected_workspace == "📁 Results & Evidence":
-    render_platform_header(
-        title="RESULTS & EVIDENCE EXPLORER",
-        subtitle="Structured Page Inspection, Passages & Dataset Exports"
+    render_workspace_hero(
+        eyebrow="RESULTS & EVIDENCE",
+        title_part1="Explore",
+        title_accent="What the Web Revealed",
+        subtitle="Browse crawled pages, verify sources, and examine evidence in detail.",
+        accent_type="orange",
     )
     render_results_and_evidence_workspace(pages, summary, failures)
 
 elif selected_workspace == "📊 Visual Analytics":
-    render_platform_header(
-        title="VISUAL ANALYTICS DASHBOARD",
-        subtitle="Network Topology Graph, Crawl Depth & Domain Distributions"
+    render_workspace_hero(
+        eyebrow="VISUAL ANALYTICS",
+        title_part1="Insights",
+        title_accent="from Real Web Data",
+        subtitle="Analyze crawl data, discover patterns, and explore the web at scale.",
+        accent_type="purple",
     )
     render_visual_analytics_workspace(pages, edges, failures, summary)
 
 elif selected_workspace == "📜 Research History":
-    render_platform_header(
-        title="RESEARCH & AUDIT ARCHIVES",
-        subtitle="Persisted Web Search Queries & Crawl Session Logs"
+    render_workspace_hero(
+        eyebrow="RESEARCH HISTORY",
+        title_part1="Revisit. Continue.",
+        title_accent="Go Deeper.",
+        subtitle="Your past searches, crawls, and discoveries — all in one place.",
+        accent_type="purple",
     )
     render_research_history_workspace(db)
 
 elif selected_workspace == "⚙️ Settings & System":
-    render_platform_header(
-        title="SETTINGS & SYSTEM TELEMETRY",
-        subtitle="AI Providers, Search Engines, Headless Browser & Database"
+    render_workspace_hero(
+        eyebrow="SETTINGS & SYSTEM",
+        title_part1="System Architecture",
+        title_accent="& Preferences",
+        subtitle="Manage AI models, search credentials, crawler defaults, and SQLite database storage.",
+        accent_type="orange",
     )
     render_settings_view(db)

@@ -62,7 +62,7 @@ def render_settings_view(db: CrawlDatabase):
         pass
 
     st.markdown("""
-        <div style="font-size: 0.74rem; font-weight: 800; letter-spacing: 0.08em; color: #38BDF8; text-transform: uppercase; margin-bottom: 0.6rem;">
+        <div style="font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em; color: #F97316; text-transform: uppercase; margin-bottom: 0.8rem;">
             ⚡ PLATFORM RUNTIME &amp; ENGINE HEALTH
         </div>
     """, unsafe_allow_html=True)
@@ -73,7 +73,7 @@ def render_settings_view(db: CrawlDatabase):
         ai_status = "🟢 Groq Cloud" if has_groq else "🟡 Deterministic Fallback"
         ai_color = "#10B981" if has_groq else "#F59E0B"
         st.markdown(f"""
-            <div class="kpi-card" style="padding: 0.95rem 1.15rem;">
+            <div class="kpi-card" style="padding: 1rem 1.2rem; border-top: 3px solid #A855F7;">
                 <div style="font-size: 0.70rem; font-weight: 700; color: #94A3B8; text-transform: uppercase; margin-bottom: 0.2rem;">
                     AI Synthesis Engine
                 </div>
@@ -88,9 +88,9 @@ def render_settings_view(db: CrawlDatabase):
 
     with col2:
         search_status = "🟢 Google API + Multi" if has_google else "🟢 Multi-Engine Index"
-        search_color = "#38BDF8"
+        search_color = "#F97316"
         st.markdown(f"""
-            <div class="kpi-card" style="padding: 0.95rem 1.15rem;">
+            <div class="kpi-card" style="padding: 1rem 1.2rem; border-top: 3px solid #F97316;">
                 <div style="font-size: 0.70rem; font-weight: 700; color: #94A3B8; text-transform: uppercase; margin-bottom: 0.2rem;">
                     Search Discovery
                 </div>
@@ -107,7 +107,7 @@ def render_settings_view(db: CrawlDatabase):
         browser_status = "🟢 Chromium Ready" if has_playwright else "⚪ HTTP Engine"
         browser_color = "#10B981" if has_playwright else "#94A3B8"
         st.markdown(f"""
-            <div class="kpi-card" style="padding: 0.95rem 1.15rem;">
+            <div class="kpi-card" style="padding: 1rem 1.2rem; border-top: 3px solid #10B981;">
                 <div style="font-size: 0.70rem; font-weight: 700; color: #94A3B8; text-transform: uppercase; margin-bottom: 0.2rem;">
                     Headless Browser
                 </div>
@@ -122,11 +122,11 @@ def render_settings_view(db: CrawlDatabase):
 
     with col4:
         st.markdown(f"""
-            <div class="kpi-card" style="padding: 0.95rem 1.15rem;">
+            <div class="kpi-card" style="padding: 1rem 1.2rem; border-top: 3px solid #8B5CF6;">
                 <div style="font-size: 0.70rem; font-weight: 700; color: #94A3B8; text-transform: uppercase; margin-bottom: 0.2rem;">
                     SQLite Repository
                 </div>
-                <div style="font-size: 1.05rem; font-weight: 800; color: #818CF8; margin-bottom: 0.2rem;">
+                <div style="font-size: 1.05rem; font-weight: 800; color: #C084FC; margin-bottom: 0.2rem;">
                     💾 {db_size_kb:.1f} KB
                 </div>
                 <div style="font-size: 0.68rem; color: #64748B;">
@@ -200,7 +200,7 @@ def render_settings_view(db: CrawlDatabase):
         st.markdown(f"""
             <div style="font-size: 0.88rem; color: #E2E8F0; margin-bottom: 0.8rem; line-height: 1.6;">
                 Local persistence is managed with an ACID-compliant SQLite repository located at:
-                <br><code style="color: #38BDF8;">{db.db_path}</code>
+                <br><code style="color: #FB923C;">{db.db_path}</code>
             </div>
         """, unsafe_allow_html=True)
 
