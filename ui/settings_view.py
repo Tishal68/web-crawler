@@ -11,7 +11,6 @@ import os
 import sqlite3
 import streamlit as st
 from crawler.database import CrawlDatabase
-from crawler.browser_fetcher import PlaywrightBrowserManager
 
 
 def render_settings_view(db: CrawlDatabase):
@@ -34,7 +33,13 @@ def render_settings_view(db: CrawlDatabase):
 
     has_groq = bool(groq_api_key)
     has_google = bool(google_api_key and google_cx)
-    has_playwright = PlaywrightBrowserManager.is_available()
+
+    has_playwright = False
+    try:
+        from crawler.browser_fetcher import PlaywrightBrowserManager
+        has_playwright = PlaywrightBrowserManager.is_available()
+    except Exception:
+        has_playwright = False
 
     # Query DB stats
     total_sessions = 0

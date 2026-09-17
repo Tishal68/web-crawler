@@ -19,7 +19,7 @@ _PLAYWRIGHT_INSTALLED = False
 try:
     from playwright.sync_api import sync_playwright, Playwright, Browser, BrowserContext, TimeoutError as PlaywrightTimeoutError
     _PLAYWRIGHT_INSTALLED = True
-except ImportError:
+except (ImportError, Exception):
     _PLAYWRIGHT_INSTALLED = False
     PlaywrightTimeoutError = Exception
 

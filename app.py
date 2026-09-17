@@ -146,10 +146,16 @@ def load_preset_card_callback(preset_title: str):
         st.session_state["console_preset_select"] = preset_title
 
 
+def on_workspace_nav_change():
+    """Synchronize active workspace when sidebar radio navigation selection changes."""
+    st.session_state["active_workspace"] = st.session_state["sidebar_nav_workspace"]
+
+
 def switch_to_search_callback(query_text: str):
     """Safely transitions operational mode to search before widget instantiation."""
     st.session_state["search_query_input"] = query_text
     st.session_state["active_workspace"] = "🔎 Search & Research"
+    st.session_state["sidebar_nav_workspace"] = "🔎 Search & Research"
     st.session_state["app_operational_mode"] = "🔎 Web Search & Answers"
     st.session_state["trigger_auto_search"] = True
 
@@ -157,6 +163,7 @@ def switch_to_search_callback(query_text: str):
 def navigate_to_workspace_callback(workspace_name: str):
     """Safely transitions active workspace before widget instantiation."""
     st.session_state["active_workspace"] = workspace_name
+    st.session_state["sidebar_nav_workspace"] = workspace_name
 
 
 def reset_crawl_state_callback():
@@ -687,14 +694,22 @@ with st.sidebar:
         </div>
     """, unsafe_allow_html=True)
 
-    current_idx = WORKSPACES.index(st.session_state["active_workspace"]) if st.session_state["active_workspace"] in WORKSPACES else 0
+    active_ws = st.session_state.get("active_workspace", WORKSPACES[0])
+    if active_ws not in WORKSPACES:
+        active_ws = WORKSPACES[0]
+        st.session_state["active_workspace"] = active_ws
+
+    if "sidebar_nav_workspace" not in st.session_state or st.session_state["sidebar_nav_workspace"] != active_ws:
+        st.session_state["sidebar_nav_workspace"] = active_ws
+
     selected_workspace = st.radio(
         "Platform Workspaces",
         WORKSPACES,
-        index=current_idx,
-        key="active_workspace",
+        key="sidebar_nav_workspace",
+        on_change=on_workspace_nav_change,
         label_visibility="collapsed",
     )
+    st.session_state["active_workspace"] = selected_workspace
 
     st.markdown("""
         <div class="sidebar-footer">

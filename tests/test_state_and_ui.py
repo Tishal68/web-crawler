@@ -10,9 +10,13 @@ from unittest.mock import MagicMock
 
 from app import (
     PRESETS,
+    WORKSPACES,
     on_preset_change,
     load_preset_card_callback,
     reset_crawl_state_callback,
+    on_workspace_nav_change,
+    switch_to_search_callback,
+    navigate_to_workspace_callback,
 )
 from crawler.models import PageResult, CrawlSessionSummary, CrawlFailure
 from crawler.database import CrawlDatabase
@@ -186,3 +190,41 @@ class TestDynamicSelectboxSanitization:
 
         assert st.session_state["results_depth_select"] == "All Depths"
         assert st.session_state["results_status_select"] == "All Status Codes"
+
+
+class TestWorkspaceNavigationAndStateSync:
+    """Verify that workspace navigation and radio widget keys synchronize without state collision."""
+
+    def test_workspaces_list_integrity(self):
+        """Ensure all expected core workspaces are registered."""
+        expected = [
+            "🔎 Search & Research",
+            "🕸️ Deep Web Crawler",
+            "📁 Results & Evidence",
+            "📊 Visual Analytics",
+            "📜 Research History",
+            "⚙️ Settings & System",
+        ]
+        assert WORKSPACES == expected
+
+    def test_workspace_callbacks_synchronize_both_keys(self):
+        """Verify navigation callbacks update both active_workspace and sidebar_nav_workspace."""
+        import streamlit as st
+
+        # Test navigate_to_workspace_callback
+        navigate_to_workspace_callback("📊 Visual Analytics")
+        assert st.session_state["active_workspace"] == "📊 Visual Analytics"
+        assert st.session_state["sidebar_nav_workspace"] == "📊 Visual Analytics"
+
+        # Test switch_to_search_callback
+        switch_to_search_callback("neural networks in robotics")
+        assert st.session_state["search_query_input"] == "neural networks in robotics"
+        assert st.session_state["active_workspace"] == "🔎 Search & Research"
+        assert st.session_state["sidebar_nav_workspace"] == "🔎 Search & Research"
+        assert st.session_state["app_operational_mode"] == "🔎 Web Search & Answers"
+        assert st.session_state["trigger_auto_search"] is True
+
+        # Test on_workspace_nav_change
+        st.session_state["sidebar_nav_workspace"] = "⚙️ Settings & System"
+        on_workspace_nav_change()
+        assert st.session_state["active_workspace"] == "⚙️ Settings & System"
