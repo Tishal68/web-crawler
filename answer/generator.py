@@ -17,7 +17,6 @@ from evidence.coverage import cluster_evidence_by_facets, EvidenceCoverageReport
 from ai.model import BaseLLMProvider
 from ai.llama import HostedLlamaProvider
 from ai.citation_validator import CitationValidator
-from ai.fallback import DeterministicResearchSynthesizer
 from ai.schemas import SynthesizedResearchResponse
 from .word_count import count_words, fit_exact_word_count
 
@@ -67,6 +66,7 @@ class AnswerGenerator:
     """Synthesizes structured, fully cited, deep research answers."""
 
     def __init__(self, llm_provider: Optional[BaseLLMProvider] = None):
+        from ai.fallback import DeterministicResearchSynthesizer
         self.llm_provider = llm_provider or HostedLlamaProvider()
         self.fallback_synthesizer = DeterministicResearchSynthesizer()
 
@@ -140,6 +140,7 @@ class AnswerGenerator:
                 analysis=query_analysis,
                 contradictions=verification_summary.get("contradictions"),
                 coverage_report=coverage_report,
+                requested_word_count=requested_word_count,
             )
 
         validator = CitationValidator(citations_list)
@@ -150,20 +151,24 @@ class AnswerGenerator:
         # Exact word count is enforced after citation validation using only the generated
         # answer and verified source passages. This prevents fabricated padding.
         if requested_word_count:
-            fitted = fit_exact_word_count(
-                direct_answer,
-                requested_word_count,
-                passages=passages,
-                source_lookup={c.url: c.index for c in citations_list},
-            )
-            if fitted is not None and count_words(fitted) == requested_word_count:
-                direct_answer = fitted
-            else:
-                logger.warning(
-                    "Could not construct exact %s-word answer from available evidence; retaining grounded draft (%s words).",
-                    requested_word_count,
-                    count_words(direct_answer),
+            is_exact = getattr(requested_word_count, "is_exact", True)
+            target_val = int(requested_word_count)
+            if is_exact or count_words(direct_answer) != target_val:
+                fitted = fit_exact_word_count(
+                    direct_answer,
+                    target_val,
+                    passages=passages,
+                    source_lookup={c.url: c.index for c in citations_list},
                 )
+                if fitted is not None:
+                    if not is_exact or count_words(fitted) == target_val:
+                        direct_answer = fitted
+                else:
+                    logger.warning(
+                        "Could not construct exact %s-word answer from available evidence; retaining grounded draft (%s words).",
+                        target_val,
+                        count_words(direct_answer),
+                    )
 
         key_findings = sanitized_resp.key_findings
         structured_sections = [

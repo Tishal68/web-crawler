@@ -50,12 +50,22 @@ def build_synthesis_prompt(
     lang_name = {"es": "Spanish", "fr": "French", "de": "German"}.get(target_language, "English")
     parts.append(f"TARGET ANSWER LANGUAGE: {lang_name}")
 
+    complexity = getattr(analysis, "complexity", None)
+    comp_str = complexity.value if hasattr(complexity, "value") else str(complexity or "moderate")
+
     if requested_word_count:
         parts.append(
-            f"\nEXACT WORD COUNT: {requested_word_count} words for direct_answer. "
-            "This is a hard requirement. Count prose words deterministically. "
-            "Do not use repetition, filler, invented facts, or unsupported claims to reach the target."
+            f"\nEXACT WORD COUNT REQUIREMENT: {requested_word_count} words for direct_answer.\n"
+            f"This is a strict constraint. The direct_answer must be exactly {requested_word_count} words.\n"
+            f"Do not use repetition, filler, invented facts, or unsupported claims."
         )
+    else:
+        if comp_str == "simple":
+            parts.append("\nANSWER DEPTH: Concise but complete direct answer (1-2 informative paragraphs with citations).")
+        elif comp_str in ("complex", "comparison"):
+            parts.append("\nANSWER DEPTH: Comprehensive multi-paragraph deep synthesis (3-4 structured paragraphs, 250-450 words) covering multiple dimensions of the topic with citations. Avoid stopping after only 1-3 sentences.")
+        else:
+            parts.append("\nANSWER DEPTH: Thorough multi-paragraph explanation (2-3 structured paragraphs, 180-300 words) explaining the topic properly with supporting details and citations. Avoid stopping after only 1-3 sentences.")
 
     if history:
         parts.append("\nPREVIOUS CONVERSATION CONTEXT:")

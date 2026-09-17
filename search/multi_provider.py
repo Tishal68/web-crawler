@@ -249,6 +249,18 @@ class MultiEngineSearchProvider(SearchProvider):
                         if title:
                             slug = title.replace(" ", "_")
                             wiki_url = f"https://en.wikipedia.org/wiki/{urllib.parse.quote(slug)}"
+                            try:
+                                sum_resp = self.session.get(
+                                    f"https://en.wikipedia.org/api/rest_v1/page/summary/{urllib.parse.quote(slug)}",
+                                    headers={"User-Agent": "WebResearchEngine/2.0"},
+                                    timeout=3.0,
+                                )
+                                if sum_resp.status_code == 200:
+                                    extract = sum_resp.json().get("extract")
+                                    if extract and len(extract) > len(snippet):
+                                        snippet = extract
+                            except Exception:
+                                pass
                             if try_add(title, wiki_url, snippet):
                                 wiki_titles.append(title)
                             if len(results) >= num_results:

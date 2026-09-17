@@ -16,6 +16,11 @@ from .schemas import (
     SynthesizedConflict,
 )
 from evidence.models import EvidencePassage
+from answer.word_count import (
+    count_words,
+    is_semantically_repetitive,
+    format_into_paragraphs,
+)
 
 if TYPE_CHECKING:
     from answer.citations import Citation
@@ -147,6 +152,7 @@ class DeterministicResearchSynthesizer:
         analysis: Optional[Any] = None,
         contradictions: Optional[List[Any]] = None,
         coverage_report: Optional[Any] = None,
+        requested_word_count: Optional[int] = None,
     ) -> SynthesizedResearchResponse:
         """Synthesize a structured research response from passages and citations."""
         if not passages:
@@ -210,59 +216,77 @@ class DeterministicResearchSynthesizer:
                 "score": 1.0,
             }]
 
-        # 2. Build multi-source executive direct answer
+        # 2. Build multi-source executive direct answer with adaptive depth
         all_sorted = sorted(sentences, key=lambda x: x["score"], reverse=True)
 
-        # Sentence 1: Best overall answering sentence across all sources
-        s1 = all_sorted[0] if all_sorted else None
-        if s1 and re.match(r"^(?:It|He|She|They)\s+(?:was|is|were)\b", s1["text"], flags=re.I):
-            subject = None
-            if getattr(analysis, "entities", None):
-                subject = analysis.entities[0]
-            elif query_tokens:
-                non_stopwords = [w for w in query.split() if w.lower() not in ("who", "what", "when", "where", "why", "how", "and", "the", "is", "was", "created", "created?")]
-                if non_stopwords:
-                    subject = " ".join(non_stopwords[:2]).title()
-            if subject:
-                s1_text = re.sub(r"^(?:It|He|She|They)\s+", f"{subject} ", s1["text"], flags=re.I)
-                s1 = dict(s1)
-                s1["text"] = s1_text
+        # Determine target sentence count based on query complexity or explicit word count
+        complexity = getattr(analysis, "complexity", None)
+        comp_str = complexity.value if hasattr(complexity, "value") else str(complexity or "moderate")
 
-        # Sentence 2: Top-scoring sentence from an independent source
-        s2 = None
-        if s1:
-            diff_sources = [s for s in all_sorted if s["source_id"] != s1["source_id"]]
-            if diff_sources:
-                s2 = diff_sources[0]
-
-        # Sentence 3: Top-scoring sentence from a third independent source (or next best distinct insight)
-        s3 = None
-        used_sids = {s["source_id"] for s in (s1, s2) if s}
-        third_sources = [s for s in all_sorted if s["source_id"] not in used_sids]
-        if third_sources:
-            s3 = third_sources[0]
+        if requested_word_count:
+            # Target initial draft proportional to requested word count (~18 words/sentence)
+            target_sent_count = max(3, requested_word_count // 18 + 1)
+        elif comp_str == "simple":
+            target_sent_count = 3
+        elif comp_str in ("complex", "comparison"):
+            target_sent_count = max(10, min(16, len(all_sorted)))
         else:
-            used_fps = {s["text"][:45].lower() for s in (s1, s2) if s}
-            # Also add original unmutated s1 text
-            if all_sorted:
-                used_fps.add(all_sorted[0]["text"][:45].lower())
-            remaining = [s for s in all_sorted if s["text"][:45].lower() not in used_fps]
-            if remaining:
-                s3 = remaining[0]
+            # Moderate informational question
+            target_sent_count = max(7, min(10, len(all_sorted)))
 
-        selected_direct = [s for s in (s1, s2, s3) if s is not None]
+        selected_direct: List[Dict[str, Any]] = []
+        selected_texts: List[str] = []
+        used_sids: set[int] = set()
 
-        direct_parts = []
+        # Sentence 1: Best overall answering sentence across all sources
+        if all_sorted:
+            s1 = dict(all_sorted[0])
+            if re.match(r"^(?:It|He|She|They)\s+(?:was|is|were)\b", s1["text"], flags=re.I):
+                subject = None
+                if getattr(analysis, "entities", None):
+                    subject = analysis.entities[0]
+                elif query_tokens:
+                    non_stopwords = [w for w in query.split() if w.lower() not in ("who", "what", "when", "where", "why", "how", "and", "the", "is", "was", "created", "created?")]
+                    if non_stopwords:
+                        subject = " ".join(non_stopwords[:2]).title()
+                if subject:
+                    s1["text"] = re.sub(r"^(?:It|He|She|They)\s+", f"{subject} ", s1["text"], flags=re.I)
+            selected_direct.append(s1)
+            selected_texts.append(s1["text"])
+            used_sids.add(s1["source_id"])
+
+        # Subsequent sentences: diversify sources and prevent semantic repetition
+        for cand in all_sorted[1:]:
+            if len(selected_direct) >= target_sent_count:
+                break
+            if is_semantically_repetitive(cand["text"], selected_texts):
+                continue
+            selected_direct.append(cand)
+            selected_texts.append(cand["text"])
+            used_sids.add(cand["source_id"])
+
+        # If more sentences are needed to satisfy target_sent_count, relax strict diversity
+        if len(selected_direct) < target_sent_count:
+            for cand in all_sorted[1:]:
+                if len(selected_direct) >= target_sent_count:
+                    break
+                fp = cand["text"][:45].lower()
+                if any(fp in t[:45].lower() for t in selected_texts):
+                    continue
+                selected_direct.append(cand)
+                selected_texts.append(cand["text"])
+
+        direct_sentences = []
         direct_claims = []
         for s in selected_direct:
             sid = s["source_id"]
             txt = s["text"]
             if not txt.endswith((".", "!", "?")):
                 txt += "."
-            direct_parts.append(f"{txt} [{sid}]")
+            direct_sentences.append(f"{txt} [{sid}]")
             direct_claims.append(SynthesizedClaim(text=txt, source_ids=[sid]))
 
-        direct_answer = " ".join(direct_parts)
+        direct_answer = format_into_paragraphs(direct_sentences, target_paragraph_words=85)
 
         # 3. Build High-Density Key Findings with Categorization Tags
         direct_fps = {s["text"][:45].lower() for s in selected_direct}

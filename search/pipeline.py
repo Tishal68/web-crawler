@@ -98,7 +98,13 @@ class SearchPipeline:
         provider = self.get_preferred_provider(provider_preference)
         _update(f"Searching web via {provider.provider_name}...", 0.25)
 
-        effective_source_target = max(12, num_sources)
+        if requested_word_count:
+            effective_source_target = max(12, num_sources, min(24, int(requested_word_count) // 25))
+            evidence_limit = max(36, min(80, int(requested_word_count) // 6 + 20))
+        else:
+            effective_source_target = max(12, num_sources)
+            evidence_limit = 36
+
         cached_set = self.cache.get(search_target, provider.provider_name, effective_source_target)
         if cached_set:
             result_set = cached_set
@@ -139,7 +145,6 @@ class SearchPipeline:
         for page in extracted_pages:
             all_passages.extend(page.passages)
 
-        evidence_limit = 36 if requested_word_count is None else min(48, max(36, requested_word_count // 8))
         top_passages = rank_and_filter_passages(
             passages=all_passages,
             query_analysis=analysis,

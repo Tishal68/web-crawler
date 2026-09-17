@@ -14,6 +14,7 @@ import streamlit.components.v1 as components
 
 from search.pipeline import SearchPipeline, SearchPipelineResult
 from crawler.database import CrawlDatabase
+from answer.word_count import count_words
 
 
 def format_text_with_citations(raw_text: str) -> str:
@@ -238,13 +239,24 @@ def render_futuristic_direct_answer(active_res: SearchPipelineResult):
     citations_count = len(answer.citations)
     elapsed = active_res.total_elapsed
 
+    actual_words = count_words(answer.direct_answer)
+    raw_req = getattr(answer, "requested_word_count", None)
+    req_words = int(raw_req) if raw_req else None
+
+    if req_words:
+        word_count_pill = f'<span class="stat-pill" style="color: #38BDF8; border-color: rgba(56, 189, 248, 0.5); font-weight: 800;">📝 {actual_words} / {req_words} words</span>'
+        word_count_foot = f'<span class="foot-tag">📝 WORD COUNT: {actual_words} / {req_words}</span>'
+    else:
+        word_count_pill = f'<span class="stat-pill">📝 {actual_words} words</span>'
+        word_count_foot = f'<span class="foot-tag">📝 WORD COUNT: {actual_words}</span>'
+
     formatted_direct_answer = format_text_with_citations(answer.direct_answer)
     safe_json_answer = json.dumps(formatted_direct_answer)
 
     # Calculate optimal component container height based on length
     char_len = len(answer.direct_answer)
     est_lines = max(2, char_len // 52 + 1)
-    calc_height = max(195, min(480, 115 + est_lines * 32))
+    calc_height = max(210, min(560, 130 + est_lines * 30))
 
     terminal_html = f"""
     <!DOCTYPE html>
@@ -397,6 +409,7 @@ def render_futuristic_direct_answer(active_res: SearchPipelineResult):
         <div class="terminal-controls">
           <span class="stat-pill">Score: {conf_score:.2f}</span>
           <span class="stat-pill">⚡ {citations_count} Sources</span>
+          {word_count_pill}
           <button id="btnInstant" class="action-btn" onclick="showInstant()">⚡ Instant View</button>
           <button id="btnReplay" class="action-btn" onclick="replayStream()">↺ Replay</button>
         </div>
@@ -408,6 +421,7 @@ def render_futuristic_direct_answer(active_res: SearchPipelineResult):
       <div class="terminal-bottom">
         <span class="foot-tag">🔒 PROBABILISTIC GROUNDING (NEVER 100%)</span>
         <span class="foot-tag">🌐 {ind_domains} INDEPENDENT DOMAINS VERIFIED</span>
+        {word_count_foot}
         <span class="foot-tag">⏱️ {elapsed:.2f}s TOTAL PIPELINE LATENCY</span>
       </div>
     </div>
