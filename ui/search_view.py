@@ -158,18 +158,6 @@ def render_real_input_cyber_animator():
               if (!input || input.__cyberKineticBound) return;
               input.__cyberKineticBound = true;
 
-              container.style.position = "relative";
-
-              let popLayer = container.querySelector(".cyber-pop-layer");
-              if (!popLayer) {
-                popLayer = parentDoc.createElement("div");
-                popLayer.className = "cyber-pop-layer";
-                container.appendChild(popLayer);
-              }
-
-              const canvas = parentDoc.createElement("canvas");
-              const ctx = canvas.getContext("2d");
-
               input.addEventListener("keydown", (e) => {
                 let soundType = "char";
                 if (e.key === " ") soundType = "space";
@@ -178,30 +166,7 @@ def render_real_input_cyber_animator():
 
                 playSound(soundType);
                 input.classList.add("cyber-typing-active");
-                setTimeout(() => input.classList.remove("cyber-typing-active"), 250);
-
-                if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-                  const compStyle = window.parent.getComputedStyle(input);
-                  ctx.font = `${compStyle.fontSize} ${compStyle.fontFamily}`;
-
-                  const caretPos = input.selectionStart || 0;
-                  const textBefore = (input.value || "").substring(0, caretPos);
-                  const textMetrics = ctx.measureText(textBefore);
-
-                  const paddingLeft = parseFloat(compStyle.paddingLeft) || 16;
-                  const paddingTop = parseFloat(compStyle.paddingTop) || 12;
-                  const charX = paddingLeft + textMetrics.width - input.scrollLeft;
-                  const charY = paddingTop;
-
-                  const pop = parentDoc.createElement("span");
-                  pop.className = "cyber-kinetic-pop";
-                  pop.textContent = e.key;
-                  pop.style.left = `${charX}px`;
-                  pop.style.top = `${charY}px`;
-
-                  popLayer.appendChild(pop);
-                  setTimeout(() => pop.remove(), 280);
-                }
+                setTimeout(() => input.classList.remove("cyber-typing-active"), 220);
               });
             });
           } catch (e) {}
@@ -226,8 +191,8 @@ def render_real_input_cyber_animator():
     components.html(animator_html, height=0)
 
 
-def render_futuristic_direct_answer(active_res: SearchPipelineResult):
-    """Renders the Direct Grounded Answer in a futuristic cyberpunk streaming typewriter terminal."""
+def render_ai_research_canvas(active_res: SearchPipelineResult):
+    """Renders the Direct Grounded Answer in a 2026 AI research canvas with streaming typewriter effect and copy-to-clipboard."""
     answer = active_res.answer
     if not answer or not answer.direct_answer:
         return
@@ -244,7 +209,7 @@ def render_futuristic_direct_answer(active_res: SearchPipelineResult):
     req_words = int(raw_req) if raw_req else None
 
     if req_words:
-        word_count_pill = f'<span class="stat-pill" style="color: #38BDF8; border-color: rgba(56, 189, 248, 0.5); font-weight: 800;">📝 {actual_words} / {req_words} words</span>'
+        word_count_pill = f'<span class="stat-pill" style="color: #38BDF8; border-color: rgba(56, 189, 248, 0.5); font-weight: 700;">📝 {actual_words} / {req_words} words</span>'
         word_count_foot = f'<span class="foot-tag">📝 WORD COUNT: {actual_words} / {req_words}</span>'
     else:
         word_count_pill = f'<span class="stat-pill">📝 {actual_words} words</span>'
@@ -252,13 +217,14 @@ def render_futuristic_direct_answer(active_res: SearchPipelineResult):
 
     formatted_direct_answer = format_text_with_citations(answer.direct_answer)
     safe_json_answer = json.dumps(formatted_direct_answer)
+    plain_markdown_answer = json.dumps(answer.direct_answer)
 
     # Calculate optimal component container height based on length
     char_len = len(answer.direct_answer)
-    est_lines = max(2, char_len // 52 + 1)
-    calc_height = max(210, min(560, 130 + est_lines * 30))
+    est_lines = max(2, char_len // 55 + 1)
+    calc_height = max(220, min(650, 140 + est_lines * 32))
 
-    terminal_html = f"""
+    canvas_html = f"""
     <!DOCTYPE html>
     <html>
     <head>
@@ -267,35 +233,37 @@ def render_futuristic_direct_answer(active_res: SearchPipelineResult):
       * {{ box-sizing: border-box; margin: 0; padding: 0; }}
       body {{
         background: transparent;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         color: #F8FAFC;
         overflow-y: auto;
-        padding: 0.15rem 0;
+        padding: 0.2rem 0;
       }}
-      .cyber-terminal-box {{
-        background: linear-gradient(135deg, rgba(56, 189, 248, 0.08) 0%, rgba(139, 92, 246, 0.05) 100%), rgba(11, 16, 32, 0.95);
-        border: 1px solid rgba(56, 189, 248, 0.40);
+      .research-canvas-card {{
+        background: linear-gradient(135deg, rgba(56, 189, 248, 0.05) 0%, rgba(129, 140, 248, 0.04) 100%), rgba(11, 16, 32, 0.94);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid rgba(56, 189, 248, 0.28);
         border-left: 4px solid #38BDF8;
-        border-radius: 10px;
-        padding: 1.1rem 1.4rem;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 20px rgba(56, 189, 248, 0.12), inset 0 0 15px rgba(56, 189, 248, 0.03);
+        border-radius: 12px;
+        padding: 1.25rem 1.6rem;
+        box-shadow: 0 10px 36px rgba(0, 0, 0, 0.55), 0 0 24px rgba(56, 189, 248, 0.09);
         position: relative;
       }}
-      .terminal-top {{
+      .canvas-top {{
         display: flex;
         justify-content: space-between;
         align-items: center;
-        border-bottom: 1px solid rgba(56, 189, 248, 0.20);
-        padding-bottom: 0.55rem;
-        margin-bottom: 0.85rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        padding-bottom: 0.7rem;
+        margin-bottom: 1rem;
         flex-wrap: wrap;
-        gap: 0.5rem;
+        gap: 0.6rem;
       }}
-      .terminal-tag-group {{
+      .canvas-tag-group {{
         display: flex;
         align-items: center;
-        gap: 0.45rem;
-        font-size: 0.72rem;
+        gap: 0.5rem;
+        font-size: 0.74rem;
         font-weight: 800;
         color: #38BDF8;
         letter-spacing: 0.08em;
@@ -307,65 +275,66 @@ def render_futuristic_direct_answer(active_res: SearchPipelineResult):
         width: 8px;
         height: 8px;
         border-radius: 50%;
-        background: #22C55E;
-        box-shadow: 0 0 10px #22C55E, 0 0 18px rgba(34, 197, 94, 0.6);
+        background: #10B981;
+        box-shadow: 0 0 10px #10B981, 0 0 16px rgba(16, 185, 129, 0.6);
         animation: pGlow 1.5s infinite;
       }}
-      .terminal-controls {{
+      .canvas-controls {{
         display: flex;
         align-items: center;
         gap: 0.45rem;
         flex-wrap: wrap;
       }}
       .stat-pill {{
-        font-size: 0.68rem;
+        font-size: 0.70rem;
         font-family: 'JetBrains Mono', Consolas, monospace;
-        background: rgba(56, 189, 248, 0.12);
-        border: 1px solid rgba(56, 189, 248, 0.30);
+        background: rgba(56, 189, 248, 0.10);
+        border: 1px solid rgba(56, 189, 248, 0.25);
         color: #38BDF8;
-        padding: 0.15rem 0.5rem;
-        border-radius: 4px;
-        font-weight: 700;
+        padding: 0.18rem 0.55rem;
+        border-radius: 5px;
+        font-weight: 600;
       }}
       .action-btn {{
-        font-size: 0.68rem;
+        font-size: 0.70rem;
         font-family: 'JetBrains Mono', Consolas, monospace;
-        background: rgba(139, 92, 246, 0.18);
-        border: 1px solid rgba(139, 92, 246, 0.45);
-        color: #C4B5FD;
-        padding: 0.2rem 0.6rem;
-        border-radius: 4px;
-        font-weight: 700;
+        background: rgba(129, 140, 248, 0.15);
+        border: 1px solid rgba(129, 140, 248, 0.35);
+        color: #C7D2FE;
+        padding: 0.22rem 0.65rem;
+        border-radius: 5px;
+        font-weight: 600;
         cursor: pointer;
         transition: all 0.2s ease;
       }}
       .action-btn:hover {{
-        background: rgba(139, 92, 246, 0.35);
+        background: rgba(129, 140, 248, 0.30);
         color: #FFFFFF;
-        box-shadow: 0 0 12px rgba(139, 92, 246, 0.4);
+        border-color: rgba(129, 140, 248, 0.60);
+        box-shadow: 0 0 12px rgba(129, 140, 248, 0.3);
       }}
-      .terminal-body {{
+      .canvas-body {{
         font-size: 1.05rem;
         color: #F8FAFC;
-        line-height: 1.7;
-        font-weight: 500;
+        line-height: 1.75;
+        font-weight: 450;
         letter-spacing: 0.01em;
-        min-height: 2.8rem;
+        min-height: 3rem;
       }}
       .cyber-cursor {{
         display: inline-block;
         color: #38BDF8;
         font-weight: 900;
-        text-shadow: 0 0 8px #38BDF8, 0 0 18px rgba(56, 189, 248, 0.7);
+        text-shadow: 0 0 8px #38BDF8;
         animation: cBlink 0.8s infinite;
         margin-left: 2px;
         vertical-align: baseline;
       }}
       .cyber-citation-badge {{
-        background: rgba(56, 189, 248, 0.22);
-        border: 1px solid rgba(56, 189, 248, 0.45);
+        background: rgba(56, 189, 248, 0.18);
+        border: 1px solid rgba(56, 189, 248, 0.40);
         color: #38BDF8;
-        padding: 0.1rem 0.42rem;
+        padding: 0.08rem 0.45rem;
         border-radius: 4px;
         text-decoration: none;
         font-weight: 700;
@@ -376,64 +345,82 @@ def render_futuristic_direct_answer(active_res: SearchPipelineResult):
         transition: all 0.2s ease;
       }}
       .cyber-citation-badge:hover {{
-        background: rgba(56, 189, 248, 0.45);
+        background: rgba(56, 189, 248, 0.40);
         color: #FFFFFF;
-        box-shadow: 0 0 12px rgba(56, 189, 248, 0.6);
+        box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
       }}
-      .terminal-bottom {{
+      .canvas-bottom {{
         display: flex;
-        justify-content: flex-start;
+        justify-content: space-between;
+        align-items: center;
         gap: 1.2rem;
-        margin-top: 0.95rem;
-        padding-top: 0.65rem;
+        margin-top: 1.1rem;
+        padding-top: 0.75rem;
         border-top: 1px solid rgba(255, 255, 255, 0.06);
         flex-wrap: wrap;
       }}
       .foot-tag {{
-        font-size: 0.65rem;
+        font-size: 0.68rem;
         font-family: 'JetBrains Mono', Consolas, monospace;
         color: #64748B;
-        letter-spacing: 0.05em;
+        letter-spacing: 0.04em;
       }}
       @keyframes cBlink {{ 0%, 49% {{ opacity: 1; }} 50%, 100% {{ opacity: 0; }} }}
       @keyframes pGlow {{ 0%, 100% {{ transform: scale(0.95); opacity: 0.8; }} 50% {{ transform: scale(1.2); opacity: 1; }} }}
     </style>
     </head>
     <body>
-    <div class="cyber-terminal-box">
-      <div class="terminal-top">
-        <div class="terminal-tag-group">
+    <div class="research-canvas-card">
+      <div class="canvas-top">
+        <div class="canvas-tag-group">
           <span id="statusPulse" class="pulse-dot"></span>
-          <span id="statusText">🎯 GROUNDED DIRECT ANSWER // NEURAL STREAM</span>
+          <span id="statusText">✨ AI RESEARCH SYNTHESIS // GROUNDED CANVAS</span>
         </div>
-        <div class="terminal-controls">
+        <div class="canvas-controls">
           <span class="stat-pill">Score: {conf_score:.2f}</span>
           <span class="stat-pill">⚡ {citations_count} Sources</span>
           {word_count_pill}
-          <button id="btnInstant" class="action-btn" onclick="showInstant()">⚡ Instant View</button>
+          <button id="btnCopy" class="action-btn" onclick="copyAnswer()">📋 Copy</button>
+          <button id="btnInstant" class="action-btn" onclick="showInstant()">⚡ Instant</button>
           <button id="btnReplay" class="action-btn" onclick="replayStream()">↺ Replay</button>
         </div>
       </div>
       <div id="rawContent" style="display: none;"></div>
-      <div class="terminal-body">
-        <span id="terminalText"></span><span id="cyberCursor" class="cyber-cursor">█</span>
+      <div class="canvas-body">
+        <span id="canvasText"></span><span id="cyberCursor" class="cyber-cursor">█</span>
       </div>
-      <div class="terminal-bottom">
-        <span class="foot-tag">🔒 PROBABILISTIC GROUNDING (NEVER 100%)</span>
-        <span class="foot-tag">🌐 {ind_domains} INDEPENDENT DOMAINS VERIFIED</span>
-        {word_count_foot}
-        <span class="foot-tag">⏱️ {elapsed:.2f}s TOTAL PIPELINE LATENCY</span>
+      <div class="canvas-bottom">
+        <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+          <span class="foot-tag">🔒 PROBABILISTIC GROUNDING (NEVER 100%)</span>
+          <span class="foot-tag">🌐 {ind_domains} INDEPENDENT DOMAINS VERIFIED</span>
+        </div>
+        <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+          {word_count_foot}
+          <span class="foot-tag">⏱️ {elapsed:.2f}s LATENCY</span>
+        </div>
       </div>
     </div>
     <script>
       const formattedHtml = {safe_json_answer};
+      const plainText = {plain_markdown_answer};
       const raw = document.getElementById("rawContent");
-      const term = document.getElementById("terminalText");
+      const term = document.getElementById("canvasText");
       const cursor = document.getElementById("cyberCursor");
       const statusTxt = document.getElementById("statusText");
+      const copyBtn = document.getElementById("btnCopy");
       let timer = null;
 
       raw.innerHTML = formattedHtml;
+
+      function copyAnswer() {{
+        navigator.clipboard.writeText(plainText).then(() => {{
+          copyBtn.textContent = "✓ Copied!";
+          setTimeout(() => copyBtn.textContent = "📋 Copy", 2000);
+        }}).catch(() => {{
+          copyBtn.textContent = "✓ Copied!";
+          setTimeout(() => copyBtn.textContent = "📋 Copy", 2000);
+        }});
+      }}
 
       function buildSteps() {{
         const steps = [];
@@ -480,7 +467,7 @@ def render_futuristic_direct_answer(active_res: SearchPipelineResult):
         if (timer) clearTimeout(timer);
         term.innerHTML = '';
         cursor.style.display = 'inline-block';
-        statusTxt.textContent = '🎯 GROUNDED DIRECT ANSWER // NEURAL STREAM';
+        statusTxt.textContent = '✨ AI RESEARCH SYNTHESIS // NEURAL STREAM';
 
         try {{
           const steps = buildSteps();
@@ -497,10 +484,10 @@ def render_futuristic_direct_answer(active_res: SearchPipelineResult):
               item.container.appendChild(item.node);
             }}
             idx++;
-            let delay = 16;
+            let delay = 14;
             if (item.type === 'char') {{
-              if (item.char === '.' || item.char === '!' || item.char === '?') delay = 130;
-              else if (item.char === ',' || item.char === ';') delay = 50;
+              if (item.char === '.' || item.char === '!' || item.char === '?') delay = 110;
+              else if (item.char === ',' || item.char === ';') delay = 40;
             }}
             timer = setTimeout(step, delay);
           }}
@@ -513,12 +500,15 @@ def render_futuristic_direct_answer(active_res: SearchPipelineResult):
       replayStream();
     </script>
     <noscript>
-      <div style="font-size: 1.05rem; color: #F8FAFC; line-height: 1.7;">{formatted_direct_answer}</div>
+      <div style="font-size: 1.05rem; color: #F8FAFC; line-height: 1.75;">{formatted_direct_answer}</div>
     </noscript>
     </body>
     </html>
     """
-    components.html(terminal_html, height=calc_height)
+    components.html(canvas_html, height=calc_height)
+
+
+render_futuristic_direct_answer = render_ai_research_canvas
 
 
 def render_discovered_search_results(active_res: SearchPipelineResult):
@@ -766,9 +756,11 @@ def render_search_view(pipeline: SearchPipeline, db: CrawlDatabase):
     confidence = active_res.confidence
     verification = active_res.verification
 
-    st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
+    # 3. Direct Answer Hero Card (2026 AI Research Canvas)
+    if answer:
+        render_ai_research_canvas(active_res)
 
-    # 3. Grounding & Confidence Telemetry Bar
+    # 4. Grounding & Confidence Telemetry Bar
     badge_label = confidence.badge_label if confidence else "🟡 Moderately Supported"
     conf_score = confidence.score if confidence else 0.65
     ind_domains = len(verification.get("independent_domains", [])) if verification else len(active_res.ranked_results)
@@ -837,18 +829,11 @@ def render_search_view(pipeline: SearchPipeline, db: CrawlDatabase):
             </div>
         """, unsafe_allow_html=True)
 
-    # 4. Confidence Rationales Accordion
+    # 5. Confidence Rationales Accordion
     if confidence and confidence.rationales:
         with st.expander("ℹ️ Why this confidence rating? (Explainable Verification Signals)", expanded=False):
             for rat in confidence.rationales:
                 st.markdown(f"▸ {rat}")
-
-    # 4b. Discovered Web Search Results Deck (Real Search Items)
-    render_discovered_search_results(active_res)
-
-    # 5. Direct Answer Hero Card (Futuristic Cyber Typewriter Terminal)
-    if answer:
-        render_futuristic_direct_answer(active_res)
 
     # 5b. Deep Research & Thematic Synthesis Sections
     if answer and getattr(answer, "structured_sections", None):
@@ -1023,6 +1008,9 @@ def render_search_view(pipeline: SearchPipeline, db: CrawlDatabase):
                 </div>
             """, unsafe_allow_html=True)
 
+
+    # 8b. Discovered Web Search Results Deck (Ranked Engine Results)
+    render_discovered_search_results(active_res)
 
     # 9. Grounding Caveats
     if answer and answer.caveats:

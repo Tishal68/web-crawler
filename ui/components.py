@@ -14,35 +14,39 @@ def apply_custom_styles():
         <style>
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
-        /* === DESIGN SYSTEM CSS VARIABLES === */
+        /* === PRODUCTION-GRADE AI RESEARCH PLATFORM DESIGN TOKENS === */
         :root {
+            --bg-base: #070A12;
             --bg-primary: #070A12;
             --bg-secondary: #0B1020;
-            --bg-surface: rgba(15, 23, 42, 0.65);
+            --bg-surface: rgba(15, 23, 42, 0.72);
+            --bg-surface-elevated: rgba(24, 35, 60, 0.85);
             --glass-bg: rgba(15, 23, 42, 0.65);
-            --glass-bg-hover: rgba(24, 35, 60, 0.80);
-            --glass-border: rgba(255, 255, 255, 0.10);
-            --glass-border-hover: rgba(34, 211, 238, 0.40);
+            --glass-bg-hover: rgba(24, 35, 60, 0.82);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --glass-border-hover: rgba(56, 189, 248, 0.35);
 
             --text-primary: #F8FAFC;
             --text-secondary: #94A3B8;
             --text-muted: #64748B;
 
-            --cyan: #22D3EE;
-            --accent-cyan: #22D3EE;  /* alias so var(--accent-cyan) resolves */
-            --violet: #8B5CF6;
-            --pink: #EC4899;
-            --success: #22C55E;
-            --danger: #F43F5E;       /* declared so var(--danger) resolves */
+            --cyan: #38BDF8;
+            --accent-cyan: #38BDF8;
+            --violet: #818CF8;
+            --accent-violet: #818CF8;
+            --pink: #F472B6;
+            --success: #10B981;
+            --danger: #EF4444;
             --warning: #F59E0B;
 
-            --glow-cyan: 0 0 25px rgba(34, 211, 238, 0.35);
-            --glow-violet: 0 0 25px rgba(139, 92, 246, 0.35);
-            --glow-green: 0 0 25px rgba(34, 197, 94, 0.35);
-            --glow-red: 0 0 25px rgba(244, 63, 94, 0.35);
+            --glow-cyan: 0 0 16px rgba(56, 189, 248, 0.20);
+            --glow-violet: 0 0 16px rgba(129, 140, 248, 0.20);
+            --glow-green: 0 0 16px rgba(16, 185, 129, 0.20);
+            --glow-red: 0 0 16px rgba(239, 68, 68, 0.20);
 
-            --radius: 12px;
-            --radius-sm: 8px;
+            --radius: 10px;
+            --radius-sm: 6px;
+            --radius-lg: 14px;
         }
 
         /* === GLOBAL THEME & VISIBLE ATMOSPHERIC BACKGROUND === */
@@ -662,18 +666,138 @@ def apply_custom_styles():
             min-height: 42px !important;
         }
 
-        /* === COMPLETELY REMOVE SIDEBAR & COLLAPSE CONTROLS === */
-        section[data-testid="stSidebar"],
-        [data-testid="collapsedControl"],
-        button[data-testid="stSidebarCollapseButton"],
-        [data-testid="stSidebarNav"] {
-            display: none !important;
-            visibility: hidden !important;
-            width: 0 !important;
-            height: 0 !important;
-            margin: 0 !important;
+        /* === PRODUCTION-GRADE AI PLATFORM SIDEBAR & NAVIGATION === */
+        section[data-testid="stSidebar"] {
+            background-color: #080C18 !important;
+            background-image: linear-gradient(180deg, #090E1D 0%, #060913 100%) !important;
+            border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+            box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4) !important;
+            display: block !important;
+            visibility: visible !important;
+        }
+        section[data-testid="stSidebar"] > div:first-child {
+            padding-top: 1.2rem !important;
+            padding-bottom: 1.5rem !important;
+            padding-left: 0.85rem !important;
+            padding-right: 0.85rem !important;
+        }
+        [data-testid="collapsedControl"] {
+            display: flex !important;
+            visibility: visible !important;
+            color: #38BDF8 !important;
+            background: rgba(15, 23, 42, 0.85) !important;
+            border: 1px solid rgba(56, 189, 248, 0.25) !important;
+            border-radius: 6px !important;
+            top: 0.8rem !important;
+            left: 0.8rem !important;
+            transition: all 0.2s ease !important;
+        }
+        [data-testid="collapsedControl"]:hover {
+            border-color: #38BDF8 !important;
+            box-shadow: 0 0 12px rgba(56, 189, 248, 0.3) !important;
+        }
+        /* Sidebar Brand */
+        .sidebar-brand {
+            padding: 0.5rem 0.6rem 1.1rem 0.6rem;
+            margin-bottom: 0.8rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+        }
+        .sidebar-logo {
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+        }
+        .logo-icon {
+            font-size: 1.35rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, rgba(56, 189, 248, 0.2) 0%, rgba(129, 140, 248, 0.15) 100%);
+            border: 1px solid rgba(56, 189, 248, 0.35);
+            box-shadow: 0 0 14px rgba(56, 189, 248, 0.2);
+        }
+        .brand-name {
+            font-size: 0.98rem;
+            font-weight: 800;
+            letter-spacing: 0.06em;
+            color: #FFFFFF;
+            display: block;
+        }
+        .brand-accent {
+            color: #38BDF8;
+            margin-left: 2px;
+        }
+        .brand-tag {
+            font-size: 0.64rem;
+            color: #64748B;
+            letter-spacing: 0.08em;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        /* Style sidebar radio buttons into sleek navigation pills */
+        section[data-testid="stSidebar"] div[data-testid="stRadio"] > div[role="radiogroup"] {
+            background: transparent !important;
+            border: none !important;
             padding: 0 !important;
-            pointer-events: none !important;
+            gap: 0.35rem !important;
+            display: flex !important;
+            flex-direction: column !important;
+        }
+        section[data-testid="stSidebar"] div[data-testid="stRadio"] > div[role="radiogroup"] label {
+            background: rgba(15, 23, 42, 0.35) !important;
+            border: 1px solid rgba(255, 255, 255, 0.05) !important;
+            border-radius: 8px !important;
+            padding: 0.65rem 0.85rem !important;
+            font-size: 0.84rem !important;
+            font-weight: 600 !important;
+            color: #94A3B8 !important;
+            cursor: pointer !important;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+            display: flex !important;
+            align-items: center !important;
+            width: 100% !important;
+        }
+        section[data-testid="stSidebar"] div[data-testid="stRadio"] > div[role="radiogroup"] label:hover {
+            color: #F8FAFC !important;
+            background: rgba(56, 189, 248, 0.08) !important;
+            border-color: rgba(56, 189, 248, 0.25) !important;
+            transform: translateX(2px) !important;
+        }
+        section[data-testid="stSidebar"] div[data-testid="stRadio"] > div[role="radiogroup"] label[data-checked="true"],
+        section[data-testid="stSidebar"] div[data-testid="stRadio"] > div[role="radiogroup"] label:has(input:checked) {
+            background: linear-gradient(90deg, rgba(56, 189, 248, 0.16) 0%, rgba(129, 140, 248, 0.08) 100%) !important;
+            border: 1px solid rgba(56, 189, 248, 0.40) !important;
+            border-left: 3px solid #38BDF8 !important;
+            color: #FFFFFF !important;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 15px rgba(56, 189, 248, 0.12) !important;
+            transform: translateX(2px) !important;
+        }
+        section[data-testid="stSidebar"] div[data-testid="stRadio"] input {
+            display: none !important;
+        }
+        /* Sidebar Footer Telemetry */
+        .sidebar-footer {
+            margin-top: 2rem;
+            padding: 0.8rem 0.6rem 0.4rem 0.6rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.07);
+        }
+        .sys-status {
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+            font-size: 0.70rem;
+            font-weight: 700;
+            color: #38BDF8;
+            letter-spacing: 0.08em;
+            margin-bottom: 0.25rem;
+        }
+        .sys-meta {
+            font-size: 0.68rem;
+            color: #64748B;
+            font-family: 'JetBrains Mono', monospace;
         }
 
         /* === UNIFIED CYBER COMMAND BAR === */
@@ -1193,11 +1317,205 @@ def apply_custom_styles():
             border-top: 1px solid rgba(255, 255, 255, 0.06);
             flex-wrap: wrap;
         }
-        .cyber-foot-tag {
-            font-size: 0.64rem;
-            font-family: 'JetBrains Mono', monospace;
+        /* === 2026 AI RESEARCH CANVAS (THE HERO ANSWER) === */
+        .research-canvas {
+            background: linear-gradient(180deg, rgba(15, 23, 42, 0.85) 0%, rgba(10, 14, 26, 0.95) 100%);
+            border: 1px solid rgba(56, 189, 248, 0.25);
+            border-left: 3px solid #38BDF8;
+            border-radius: 12px;
+            padding: 1.5rem 1.8rem;
+            margin-top: 1rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 10px 36px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(56, 189, 248, 0.02);
+            position: relative;
+        }
+        .research-canvas-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding-bottom: 0.8rem;
+            margin-bottom: 1.2rem;
+            flex-wrap: wrap;
+            gap: 0.6rem;
+        }
+        .research-canvas-tag {
+            font-size: 0.76rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            color: #38BDF8;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-transform: uppercase;
+        }
+        .research-canvas-telemetry {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        .research-canvas-body {
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 1.0rem;
+            line-height: 1.78;
+            color: #F1F5F9;
+            font-weight: 400;
+        }
+        .research-canvas-body p {
+            margin-bottom: 1.1rem;
+        }
+        .research-canvas-body b, .research-canvas-body strong {
+            color: #FFFFFF;
+            font-weight: 700;
+        }
+        .research-canvas-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            padding-top: 0.8rem;
+            margin-top: 1.3rem;
+            flex-wrap: wrap;
+            gap: 0.6rem;
+            font-size: 0.72rem;
             color: #64748B;
-            letter-spacing: 0.05em;
+        }
+
+        /* === PLATFORM TOP BAR === */
+        .platform-top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.4rem 0 1.1rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            margin-bottom: 1.2rem;
+            flex-wrap: wrap;
+            gap: 0.8rem;
+        }
+        .platform-title-group {
+            display: flex;
+            flex-direction: column;
+        }
+        .platform-title {
+            font-size: 1.28rem;
+            font-weight: 800;
+            letter-spacing: -0.01em;
+            color: #FFFFFF;
+        }
+        .platform-subtitle {
+            font-size: 0.78rem;
+            color: #94A3B8;
+            margin-top: 0.15rem;
+        }
+        .platform-top-right {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+        .platform-status-badge {
+            background: rgba(56, 189, 248, 0.10);
+            border: 1px solid rgba(56, 189, 248, 0.28);
+            color: #38BDF8;
+            padding: 0.25rem 0.65rem;
+            border-radius: 6px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            letter-spacing: 0.04em;
+        }
+        .platform-version-badge {
+            background: rgba(129, 140, 248, 0.12);
+            border: 1px solid rgba(129, 140, 248, 0.28);
+            color: #C7D2FE;
+            padding: 0.25rem 0.55rem;
+            border-radius: 6px;
+            font-size: 0.70rem;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* === MODERN EMPTY STATES === */
+        .empty-state-card {
+            background: rgba(15, 23, 42, 0.55);
+            border: 1px dashed rgba(255, 255, 255, 0.14);
+            border-radius: 12px;
+            padding: 2.2rem 2rem;
+            text-align: center;
+            margin: 1.2rem 0;
+        }
+        .empty-state-icon {
+            font-size: 2.2rem;
+            margin-bottom: 0.6rem;
+            display: inline-block;
+        }
+        .empty-state-title {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: #FFFFFF;
+            margin-bottom: 0.4rem;
+        }
+        .empty-state-desc {
+            font-size: 0.86rem;
+            color: #94A3B8;
+            max-width: 580px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        /* === REFINED SOURCE EVIDENCE CARD === */
+        .source-item-card {
+            background: rgba(15, 23, 42, 0.65);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            padding: 1.1rem 1.3rem;
+            margin-bottom: 0.85rem;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .source-item-card:hover {
+            border-color: rgba(56, 189, 248, 0.35);
+            background: rgba(24, 35, 60, 0.75);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+        }
+        .source-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 0.8rem;
+            margin-bottom: 0.45rem;
+            flex-wrap: wrap;
+        }
+        .source-item-title {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: #FFFFFF;
+            line-height: 1.4;
+        }
+        .source-item-title a {
+            color: #FFFFFF;
+            text-decoration: none;
+            transition: color 0.15s ease;
+        }
+        .source-item-title a:hover {
+            color: #38BDF8;
+        }
+        .source-item-snippet {
+            font-size: 0.84rem;
+            color: #94A3B8;
+            line-height: 1.55;
+            margin-top: 0.35rem;
+        }
+        .source-item-meta {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            font-size: 0.72rem;
+            color: #64748B;
+            margin-top: 0.6rem;
+            flex-wrap: wrap;
         }
 
         @keyframes cyberCursorBlink {
@@ -1227,22 +1545,64 @@ def render_control_label(label: str):
 render_sidebar_label = render_control_label  # Backward-compatible alias
 
 
-def render_header():
+def render_platform_header(title: str = "AI RESEARCH & INTELLIGENCE PLATFORM", subtitle: str = "Evidence-Backed Multi-Engine Retrieval & Autonomous Traversal"):
+    """Render sleek platform command bar with live operational telemetry."""
+    safe_title = html.escape(title)
+    safe_sub = html.escape(subtitle)
+    st.markdown(f"""
+        <div class="platform-top-bar">
+            <div class="platform-top-left">
+                <div class="platform-title-group">
+                    <div class="platform-title">{safe_title}</div>
+                    <div class="platform-subtitle">{safe_sub}</div>
+                </div>
+            </div>
+            <div class="platform-top-right">
+                <div class="platform-status-badge">
+                    <span class="pulse-beacon-cyan"></span> ENGINE READY
+                </div>
+                <div class="platform-version-badge">v2.5 PRO</div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+
+def render_header(title: Optional[str] = None, subtitle: Optional[str] = None):
     """Render futuristic compact cyber-analytics command bar."""
-    st.markdown("""
-        <div class="cyber-header-bar">
-            <div class="cyber-header-left">
-                <span class="cyber-logo-glyph">🕸️</span>
-                <div class="cyber-title-compact">
-                    WEB CRAWLER <span class="cyber-title-gradient">ANALYTICS</span>
-                </div>
-                <span class="cyber-version-tag">BFS ENGINE // v2.4</span>
-            </div>
-            <div class="cyber-header-right">
-                <div class="cyber-status-pill-compact">
-                    <span class="pulse-beacon-cyan"></span> SYSTEM ONLINE
-                </div>
-            </div>
+    if title or subtitle:
+        render_platform_header(title or "AI RESEARCH PLATFORM", subtitle or "Autonomous Web Crawler & Retrieval Engine")
+    else:
+        render_platform_header()
+
+
+def render_empty_state(icon: str, title: str, description: str):
+    """Render a clean, professional empty state encouraging the user's next action."""
+    safe_icon = html.escape(icon)
+    safe_title = html.escape(title)
+    safe_desc = html.escape(description)
+    st.markdown(f"""
+        <div class="empty-state-card">
+            <div class="empty-state-icon">{safe_icon}</div>
+            <div class="empty-state-title">{safe_title}</div>
+            <div class="empty-state-desc">{safe_desc}</div>
+        </div>
+    """, unsafe_allow_html=True)
+
+
+def render_callout(text: str, level: str = "info"):
+    """Render a clean, styled callout panel matching the dark technical theme."""
+    safe_text = html.escape(text)
+    colors = {
+        "info": ("#38BDF8", "rgba(56, 189, 248, 0.12)", "ℹ️"),
+        "success": ("#10B981", "rgba(16, 185, 129, 0.12)", "✓"),
+        "warning": ("#F59E0B", "rgba(245, 158, 11, 0.12)", "⚠️"),
+        "danger": ("#EF4444", "rgba(239, 68, 68, 0.12)", "✗"),
+    }
+    color, bg, glyph = colors.get(level, colors["info"])
+    st.markdown(f"""
+        <div style="background: {bg}; border-left: 3px solid {color}; border-radius: 6px; padding: 0.75rem 1rem; margin: 0.8rem 0; font-size: 0.86rem; color: #F1F5F9; display: flex; align-items: flex-start; gap: 0.6rem;">
+            <span style="color: {color}; font-weight: 700;">{glyph}</span>
+            <div style="line-height: 1.5;">{safe_text}</div>
         </div>
     """, unsafe_allow_html=True)
 

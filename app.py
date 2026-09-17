@@ -16,8 +16,11 @@ from crawler.search_discovery import is_search_query
 from ui.components import (
     apply_custom_styles,
     render_header,
+    render_platform_header,
     render_kpi_cards,
     render_completion_banner,
+    render_empty_state,
+    render_callout,
 )
 from ui.dashboard import (
     render_live_progress_container,
@@ -35,13 +38,14 @@ from ui.search_view import (
     render_real_input_cyber_animator,
 )
 from ui.source_inspector import render_source_inspector
+from ui.settings_view import render_settings_view
 
 # Initialize page settings
 st.set_page_config(
-    page_title="Web Search & Deep Crawler // Control Center",
-    page_icon="🔎",
+    page_title="Nexus Research // AI Search & Deep Web Crawler",
+    page_icon="⚡",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="expanded",
 )
 
 # Apply futuristic cyber-analytics styling
@@ -145,8 +149,14 @@ def load_preset_card_callback(preset_title: str):
 def switch_to_search_callback(query_text: str):
     """Safely transitions operational mode to search before widget instantiation."""
     st.session_state["search_query_input"] = query_text
+    st.session_state["active_workspace"] = "🔎 Search & Research"
     st.session_state["app_operational_mode"] = "🔎 Web Search & Answers"
     st.session_state["trigger_auto_search"] = True
+
+
+def navigate_to_workspace_callback(workspace_name: str):
+    """Safely transitions active workspace before widget instantiation."""
+    st.session_state["active_workspace"] = workspace_name
 
 
 def reset_crawl_state_callback():
@@ -450,12 +460,31 @@ def render_deep_crawler_mode():
                         <span style="color: #F8FAFC; margin-left: 0.35rem;">{summary.pages_crawled} pages analyzed across depth frontier {summary.max_depth_reached}.</span>
                     </div>
                     <div style="color: #94A3B8; font-size: 0.76rem;">
-                        Access details via tabs: <b>📋 Results Table</b> &bull; <b>🕸️ Network Topology</b> &bull; <b>📈 Traversal Analytics</b>
+                        Detailed insights available across workspaces: <b>📁 Results &amp; Evidence</b> &bull; <b>📊 Visual Analytics</b>
                     </div>
                 </div>
             """, unsafe_allow_html=True)
             render_completion_banner(summary)
             render_kpi_cards(summary, pages=pages)
+
+            st.markdown("<div style='margin-top: 1.1rem;'></div>", unsafe_allow_html=True)
+            col_nav1, col_nav2 = st.columns(2)
+            with col_nav1:
+                st.button(
+                    "📁 Open Results & Evidence Explorer ➔",
+                    key="btn_open_results_ws",
+                    use_container_width=True,
+                    on_click=navigate_to_workspace_callback,
+                    args=("📁 Results & Evidence",),
+                )
+            with col_nav2:
+                st.button(
+                    "📊 Open Visual Analytics Dashboard ➔",
+                    key="btn_open_analytics_ws",
+                    use_container_width=True,
+                    on_click=navigate_to_workspace_callback,
+                    args=("📊 Visual Analytics",),
+                )
         else:
             st.markdown("""
                 <div class="standby-panel-glass">
@@ -541,29 +570,198 @@ def render_deep_crawler_mode():
         render_history_section(db)
 
 
-# --- Application Header ---
-render_header()
-
-# --- Top Navigation Mode Switcher ---
-app_mode = st.radio(
-    "Operational Mode",
-    ["🔎 Web Search & Answers", "🕸️ Deep Crawler & Analytics"],
-    horizontal=True,
-    key="app_operational_mode",
-    label_visibility="collapsed",
-)
-
-if app_mode == "🔎 Web Search & Answers":
-    tab_search, tab_inspector, tab_search_hist = st.tabs([
-        "🎯 Grounded Search & Answers",
-        "🔍 Source Evidence Inspector",
-        "📜 Search History",
+def render_results_and_evidence_workspace(pages, summary, failures):
+    """Render unified Results & Evidence Explorer workspace."""
+    tab_pages, tab_explorer, tab_evidence, tab_failures = st.tabs([
+        "📋 Crawled Pages Table",
+        "🔍 URL Deep-Dive Inspector",
+        "🔬 Search Evidence Passages",
+        "⚠️ Network & Policy Failures",
     ])
-    with tab_search:
-        render_search_view(search_pipeline, db)
-    with tab_inspector:
-        render_source_inspector(st.session_state.get("active_search_result"))
+    with tab_pages:
+        if pages:
+            render_results_section(pages, summary=summary)
+        else:
+            render_empty_state(
+                "📋",
+                "No Crawled Pages Available",
+                "Execute a crawl session from the Deep Web Crawler workspace to populate the interactive data grid and export CSV/JSON datasets."
+            )
+    with tab_explorer:
+        if pages:
+            render_url_explorer(pages)
+        else:
+            render_empty_state(
+                "🔍",
+                "No URLs Ready to Inspect",
+                "Crawled page headers, status codes, and outbound links will appear here once a crawl session completes."
+            )
+    with tab_evidence:
+        active_search = st.session_state.get("active_search_result")
+        if active_search:
+            render_source_inspector(active_search)
+        else:
+            render_empty_state(
+                "🔬",
+                "No Search Evidence Retrieved",
+                "Run a search query in Search & Research to inspect parsed web passages, relevance scores, and source grounding."
+            )
+    with tab_failures:
+        if summary is not None:
+            render_failed_section(failures)
+        else:
+            render_empty_state(
+                "🛡️",
+                "No Active Crawl Session",
+                "Any network timeouts, HTTP 4xx/5xx errors, or robots.txt exclusions encountered during crawling will be reported here."
+            )
+
+
+def render_visual_analytics_workspace(pages, edges, failures, summary):
+    """Render dedicated Visual Analytics workspace."""
+    tab_graph, tab_charts = st.tabs([
+        "🕸️ Interactive Network Topology Graph",
+        "📈 Traversal Distribution & Metrics",
+    ])
+    with tab_graph:
+        if pages and edges:
+            render_network_graph_section(pages, edges)
+        else:
+            render_empty_state(
+                "🕸️",
+                "Network Topology Graph Standby",
+                "The 2D physics-directed link graph renders node hierarchies and inter-page connections once a crawl session with hyperlinks completes."
+            )
+    with tab_charts:
+        if pages:
+            render_charts_section(pages, failures=failures, summary=summary, edges=edges)
+        else:
+            render_empty_state(
+                "📈",
+                "Visual Analytics Telemetry Standby",
+                "Plotly interactive charts (status breakdown donut, crawl depth distribution, top domains, and fetch latencies) will render once pages are crawled."
+            )
+
+
+def render_research_history_workspace(db: CrawlDatabase):
+    """Render unified Research History workspace."""
+    tab_search_hist, tab_crawl_hist = st.tabs([
+        "🔎 Web Search Query History",
+        "🕸️ Crawl Session Archives",
+    ])
     with tab_search_hist:
         render_search_history_view(db)
-else:
+    with tab_crawl_hist:
+        render_history_section(db)
+
+
+# --- Persistent Sidebar Navigation ---
+WORKSPACES = [
+    "🔎 Search & Research",
+    "🕸️ Deep Web Crawler",
+    "📁 Results & Evidence",
+    "📊 Visual Analytics",
+    "📜 Research History",
+    "⚙️ Settings & System",
+]
+
+if "active_workspace" not in st.session_state:
+    st.session_state["active_workspace"] = "🔎 Search & Research"
+
+# Synchronize with legacy app_operational_mode if altered
+if "app_operational_mode" in st.session_state:
+    legacy_mode = st.session_state["app_operational_mode"]
+    if "Search" in legacy_mode and st.session_state["active_workspace"] not in WORKSPACES:
+        st.session_state["active_workspace"] = "🔎 Search & Research"
+    elif "Crawler" in legacy_mode and st.session_state["active_workspace"] not in WORKSPACES:
+        st.session_state["active_workspace"] = "🕸️ Deep Web Crawler"
+
+with st.sidebar:
+    st.markdown("""
+        <div class="sidebar-brand">
+            <div class="sidebar-logo-mark">⚡</div>
+            <div class="sidebar-brand-text">
+                <div class="sidebar-title">NEXUS CRAWLER</div>
+                <div class="sidebar-subtitle">AI RESEARCH PLATFORM</div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+    current_idx = WORKSPACES.index(st.session_state["active_workspace"]) if st.session_state["active_workspace"] in WORKSPACES else 0
+    selected_workspace = st.radio(
+        "Platform Workspaces",
+        WORKSPACES,
+        index=current_idx,
+        key="active_workspace",
+        label_visibility="collapsed",
+    )
+
+    st.markdown("""
+        <div class="sidebar-footer">
+            <div class="sidebar-telemetry-row">
+                <span class="telemetry-label">Status:</span>
+                <span class="telemetry-value"><span class="telemetry-dot"></span>Online</span>
+            </div>
+            <div class="sidebar-telemetry-row">
+                <span class="telemetry-label">Engine:</span>
+                <span class="telemetry-value">BFS + Neural</span>
+            </div>
+            <div class="sidebar-telemetry-row">
+                <span class="telemetry-label">Database:</span>
+                <span class="telemetry-value">SQLite ACID</span>
+            </div>
+            <div class="sidebar-telemetry-row">
+                <span class="telemetry-label">Release:</span>
+                <span class="telemetry-value">v2.5 Pro</span>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+# Retrieve active crawl state for workspace routing
+pages = st.session_state.get("page_results", [])
+summary = st.session_state.get("crawl_summary")
+failures = st.session_state.get("failures", [])
+edges = st.session_state.get("graph_edges", [])
+
+# Workspace Routing
+if selected_workspace == "🔎 Search & Research":
+    render_platform_header(
+        title="SEARCH & INTELLIGENCE CANVAS",
+        subtitle="Evidence-Backed Multi-Engine Retrieval & AI Neural Synthesis"
+    )
+    render_search_view(search_pipeline, db)
+
+elif selected_workspace == "🕸️ Deep Web Crawler":
+    render_platform_header(
+        title="DEEP WEB TRAVERSAL ENGINE",
+        subtitle="Autonomous Breadth-First Search & Graph Crawler"
+    )
     render_deep_crawler_mode()
+
+elif selected_workspace == "📁 Results & Evidence":
+    render_platform_header(
+        title="RESULTS & EVIDENCE EXPLORER",
+        subtitle="Structured Page Inspection, Passages & Dataset Exports"
+    )
+    render_results_and_evidence_workspace(pages, summary, failures)
+
+elif selected_workspace == "📊 Visual Analytics":
+    render_platform_header(
+        title="VISUAL ANALYTICS DASHBOARD",
+        subtitle="Network Topology Graph, Crawl Depth & Domain Distributions"
+    )
+    render_visual_analytics_workspace(pages, edges, failures, summary)
+
+elif selected_workspace == "📜 Research History":
+    render_platform_header(
+        title="RESEARCH & AUDIT ARCHIVES",
+        subtitle="Persisted Web Search Queries & Crawl Session Logs"
+    )
+    render_research_history_workspace(db)
+
+elif selected_workspace == "⚙️ Settings & System":
+    render_platform_header(
+        title="SETTINGS & SYSTEM TELEMETRY",
+        subtitle="AI Providers, Search Engines, Headless Browser & Database"
+    )
+    render_settings_view(db)

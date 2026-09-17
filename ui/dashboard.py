@@ -209,26 +209,17 @@ def render_results_section(pages: List[PageResult], summary: Optional[CrawlSessi
         if total_matches > 0 else ""
     )
 
-    st.markdown(f"""
-        <div style="display: flex; gap: 0.8rem; margin-bottom: 0.8rem; flex-wrap: wrap; font-size: 0.78rem;">
-            <span style="background: rgba(34, 211, 238, 0.08); border: 1px solid rgba(34, 211, 238, 0.25); padding: 0.25rem 0.65rem; border-radius: 4px; color: #22D3EE;">
-                <b>Showing:</b> {len(filtered_df)} of {len(df)} Pages
-            </span>
-            <span style="background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.25); padding: 0.25rem 0.65rem; border-radius: 4px; color: #22C55E;">
-                <b>200 OK:</b> {status_200_count}
-            </span>
-            <span style="background: rgba(139, 92, 246, 0.08); border: 1px solid rgba(139, 92, 246, 0.25); padding: 0.25rem 0.65rem; border-radius: 4px; color: #A78BFA;">
-                <b>Avg Latency:</b> {avg_latency * 1000:.0f} ms
-            </span>
-            <span style="background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.25); padding: 0.25rem 0.65rem; border-radius: 4px; color: #D8B4FE;">
-                <b>Words Mined:</b> {total_words:,}
-            </span>
-            {match_badge}
-            <span style="background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.10); padding: 0.25rem 0.65rem; border-radius: 4px; color: #94A3B8;">
-                <b>Discovered Links:</b> {total_extracted:,}
-            </span>
-        </div>
-    """, unsafe_allow_html=True)
+    pills_html = (
+        f'<div style="display: flex; gap: 0.8rem; margin-bottom: 0.8rem; flex-wrap: wrap; font-size: 0.78rem;">'
+        f'<span style="background: rgba(34, 211, 238, 0.08); border: 1px solid rgba(34, 211, 238, 0.25); padding: 0.25rem 0.65rem; border-radius: 4px; color: #22D3EE;"><b>Showing:</b> {len(filtered_df)} of {len(df)} Pages</span>'
+        f'<span style="background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.25); padding: 0.25rem 0.65rem; border-radius: 4px; color: #22C55E;"><b>200 OK:</b> {status_200_count}</span>'
+        f'<span style="background: rgba(139, 92, 246, 0.08); border: 1px solid rgba(139, 92, 246, 0.25); padding: 0.25rem 0.65rem; border-radius: 4px; color: #A78BFA;"><b>Avg Latency:</b> {avg_latency * 1000:.0f} ms</span>'
+        f'<span style="background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.25); padding: 0.25rem 0.65rem; border-radius: 4px; color: #D8B4FE;"><b>Words Mined:</b> {total_words:,}</span>'
+        f'{match_badge}'
+        f'<span style="background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.10); padding: 0.25rem 0.65rem; border-radius: 4px; color: #94A3B8;"><b>Discovered Links:</b> {total_extracted:,}</span>'
+        f'</div>'
+    )
+    st.markdown(pills_html, unsafe_allow_html=True)
 
     desired_cols = [
         "URL", "Title", "Depth", "Status", "Words", "Matches", "Snippet",
